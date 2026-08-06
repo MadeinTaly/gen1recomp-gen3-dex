@@ -161,29 +161,92 @@ do
   local g = fakeGame(math.min(5, #ordered), 0)
   local s = factory.new(g)
   press("a"); s:update()
-  T.eq(#pushedStates, 1, "A pushes a menu")
 
-  local menu = pushedStates[1]
-  local items = menu.items or menu.entries or {}
-  local labels, byLabel = {}, {}
-  for _, e in ipairs(items) do
-    labels[#labels + 1] = tostring(e.label)
-    byLabel[tostring(e.label)] = e
-  end
-  T.check(byLabel.DATA ~= nil,
-    "the menu offers DATA (" .. table.concat(labels, ",") .. ")")
-  T.check(byLabel.CRY ~= nil, "and CRY, which the first version lost")
+  -- The choice is drawn BY this screen, not pushed as one of its own.
+  -- A pushed menu becomes the top state, and Game:draw sizes the canvas
+  -- from the top state -- so a menu with no uiSize() shrinks the surface
+  -- back to 160x144 while this grid is still visible underneath, laid out
+  -- for 320x288. That shipped in 0.2.0 and showed three columns of five.
+  T.eq(#pushedStates, 0, "A pushes nothing on top of the grid")
+  T.check(s.choice ~= nil, "it opens its own choice instead")
+
+  local byLabel = {}
+  for _, c in ipairs(s.choices) do byLabel[c.label] = c end
+  T.check(byLabel.DATA ~= nil, "the choice offers DATA")
+  T.check(byLabel.CRY ~= nil, "and CRY, which 0.1.0 lost")
   T.check(byLabel.AREA ~= nil, "and AREA, the map of where it lives")
 
-  -- and AREA must reach the ENGINE's nest screen, not a lookalike
+  -- AREA must reach the ENGINE's nest screen, not a lookalike
   local pushed, arg
   local realPush = Screens.push
   Screens.push = function(_, id, a) pushed, arg = id, a end
-  if byLabel.AREA then pcall(byLabel.AREA.onSelect) end
+  byLabel.AREA.act(ordered[1])
   Screens.push = realPush
   T.eq(pushed, "TownMap", "AREA opens the town map")
   T.eq(type(arg) == "table" and arg.nestSpecies or nil, ordered[1],
     "asking it to blink the nests of this species")
+
+  -- and the choice takes the input while it is up, rather than letting the
+  -- cursor wander behind it
+  local before = s.index
+  press("down"); s:update()
+  T.eq(s.index, before, "the grid cursor does not move while the choice is up")
+  T.eq(s.choice.index, 2, "the choice cursor does")
+  press("b"); s:update()
+  T.check(s.choice == nil, "and B closes it")
+end
+
+-- ------- the layout follows the SURFACE, not the preference
+--
+-- This is the 0.2.0 bug, made into an assertion. Game:draw sizes the
+-- canvas from the top state, so anything over this screen puts it back to
+-- 160x144 while this one still draws underneath. Laying out for 320x288
+-- on a 160-wide surface draws three of five columns and runs the header
+-- off the edge.
+do
+  local Renderer = require("src.render.Renderer")
+  local g = fakeGame(math.min(5, #ordered), 0)
+  local s = factory.new(g)
+
+  local w0, h0 = Renderer.uiWidth, Renderer.uiHeight
+  Renderer.uiWidth, Renderer.uiHeight = 320, 288
+  T.eq(select(1, s:uiSize()), 320, "it still ASKS for the big surface")
+
+  local wide = {}
+  local realDraw = Font.draw
+  Font.draw = function(text, x, y)
+    wide[#wide + 1] = { x = x, y = y, w = Font.width(text), text = text }
+  end
+  s:draw()
+
+  -- now pretend something took the canvas back, as a pushed screen does
+  Renderer.uiWidth, Renderer.uiHeight = 160, 144
+  local narrow = {}
+  Font.draw = function(text, x, y)
+    narrow[#narrow + 1] = { x = x, y = y, w = Font.width(text), text = text }
+  end
+  s:draw()
+  Font.draw = realDraw
+  Renderer.uiWidth, Renderer.uiHeight = w0, h0
+
+  local bad = {}
+  for _, l in ipairs(narrow) do
+    if l.x + l.w > 160 then
+      bad[#bad + 1] = ("%q runs to %d on a 160-wide surface"):format(l.text, l.x + l.w)
+    end
+    if l.y + 8 > 144 then
+      bad[#bad + 1] = ("%q runs to %d on a 144-tall surface"):format(l.text, l.y + 8)
+    end
+  end
+  T.eq(#bad, 0, "on a shrunken surface nothing runs off it (" ..
+    table.concat(bad, "; ") .. ")")
+
+  -- and the two layouts really are different, or the check above is empty
+  local movedFooter = false
+  for i = 1, math.min(#wide, #narrow) do
+    if wide[i].y ~= narrow[i].y then movedFooter = true end
+  end
+  T.check(movedFooter, "and the layout really did change with the surface")
 end
 
 do
@@ -202,12 +265,19 @@ end
 -- ------- the surface, and the zones on it
 
 do
+  local Renderer = require("src.render.Renderer")
   local g = fakeGame(OWNED, SEENX)
   local s = factory.new(g)
   local w, h = s:uiSize()
   T.eq(w, 320, "BIG asks for a 320-wide surface")
   T.eq(h, 288, "and 288 tall")
   T.check(w <= 640 and h <= 576, "within what setUISize will grant")
+
+  -- Game:draw grants the surface BEFORE anything draws, so the zones are
+  -- computed against 320x288. Standing in for that here rather than
+  -- assuming it.
+  local w0, h0 = Renderer.uiWidth, Renderer.uiHeight
+  Renderer.uiWidth, Renderer.uiHeight = w, h
 
   if PaletteFX.monPal(Data, ordered[1]) then
     local zones = s:sgbPalettes()
@@ -260,6 +330,7 @@ do
   else
     T.check(true, "fixture dataset: no species palettes, zone checks skipped")
   end
+  Renderer.uiWidth, Renderer.uiHeight = w0, h0
 end
 
 -- ------- CLASSIC: the Game Boy surface, and no zones it cannot align
@@ -278,9 +349,12 @@ end
 -- ------- nothing is drawn where it cannot be read
 
 do
+  local Renderer = require("src.render.Renderer")
   local g = fakeGame(OWNED, SEENX)
   local s = factory.new(g)
   local W, H = s:uiSize()
+  local w0, h0 = Renderer.uiWidth, Renderer.uiHeight
+  Renderer.uiWidth, Renderer.uiHeight = W, H
   local gx, gy, cell = 16, 40, 56
   local gridBottom = gy + 4 * cell
 
@@ -322,6 +396,7 @@ do
   T.check(shown and #shown > 19,
     ("BIG uses its width: %d glyphs (19 would be the Game Boy)")
       :format(shown and #shown or 0))
+  Renderer.uiWidth, Renderer.uiHeight = w0, h0
 end
 
 -- ------- a custom sprite must not spill into its neighbours
