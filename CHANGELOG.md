@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.0 — where does it live
+
+- **`AREA`: the map of where a species is found.** Press A and the menu now
+  offers **DATA / CRY / AREA**, the three the vanilla list always had.
+
+  AREA is not new code: it is the engine's own `LoadTownMap_Nest` —
+  `TownMap` with `nestSpecies` — which blinks a nest icon on **every map
+  whose wild slots hold that species**, computed from `data.encounters`. It
+  is the Gen 3 "where does this live" screen, and it has been sitting in
+  the engine the whole time.
+
+- **Fixed: 0.1.0 dropped two menu entries.** Going straight to the species
+  page quietly lost both `CRY` and `AREA` — a regression against the list
+  this grid replaces, not a simplification. Both are back.
+
+- **`A OPENS`** (`MENU` / `DATA`) — `MENU` is the vanilla behaviour and the
+  default; `DATA` keeps 0.1.0's single press straight to the species page
+  for anyone who preferred it.
+
 ## 0.1.0
 
 First release.
