@@ -81,9 +81,25 @@ return function(mod)
       choices = { { "MENU", "menu" }, { "DATA", "data" } } },
   })
 
-  local function layout()
+  local Renderer = require("src.render.Renderer")
+
+  -- What the player asked for.
+  local function wanted()
     local ok, value = pcall(function() return mod.options:get("grid") end)
     return LAYOUT[(ok and value) or "big"] or LAYOUT.big
+  end
+
+  -- What actually fits the surface being drawn RIGHT NOW, which is not the
+  -- same thing. Game:draw sizes the canvas from the TOP state, so anything
+  -- pushed over this screen -- a choice menu, a text box -- puts the canvas
+  -- back to 160x144 while this one is still visible underneath. Laying out
+  -- for 320x288 on that surface draws three of five columns and runs the
+  -- header off the edge, which is exactly what the first BIG dex did.
+  local function layout()
+    local L = wanted()
+    local w, h = Renderer.uiWidth or Renderer.WIDTH, Renderer.uiHeight or Renderer.HEIGHT
+    if w >= L.w and h >= L.h then return L end
+    return LAYOUT.classic
   end
 
   local function opt(key, fallback)
@@ -191,8 +207,11 @@ return function(mod)
       return nil
     end
 
+    -- The PREFERENCE, not the current surface. Game:draw asks this to
+    -- decide how big the canvas should be, so answering with the size it
+    -- happens to be right now would mean it could never grow.
     function self:uiSize()
-      local L = layout()
+      local L = wanted()
       return L.w, L.h
     end
 
@@ -232,12 +251,52 @@ return function(mod)
       return zones
     end
 
+    -- Drawn by THIS screen rather than pushed as one of its own. A pushed
+    -- menu becomes the top state, and Game:draw sizes the canvas from the
+    -- top state -- so a menu with no uiSize() of its own silently shrinks
+    -- the surface back to 160x144 while this grid is still visible
+    -- underneath it, laid out for 320x288. Three columns of five, and the
+    -- header off the edge.
+    --
+    -- Keeping it inline means nothing is ever on top while the grid shows,
+    -- so the surface never changes under it.
+    local CHOICES = {
+      { label = "DATA", act = function(species)
+          Screens.push(game, "DexEntryMenu", species)
+        end },
+      -- like the original, a cry does not close the menu
+      { label = "CRY", keepOpen = true, act = function(species)
+          require("src.core.Sound").playCry(game.data, species)
+        end },
+      { label = "AREA", act = function(species)
+          Screens.push(game, "TownMap", { nestSpecies = species })
+        end },
+    }
+    self.choices = CHOICES
+
     -- ------- input
 
     function self:update()
       local input = game.input
       local n = #self.entries
       local per = perPage()
+
+      -- the choice takes the input while it is up
+      if self.choice then
+        local c = self.choice
+        if input:wasPressed("b") then
+          self.choice = nil
+        elseif input:wasPressed("up") then
+          c.index = (c.index - 2) % #CHOICES + 1
+        elseif input:wasPressed("down") then
+          c.index = c.index % #CHOICES + 1
+        elseif input:wasPressed("a") then
+          local pick = CHOICES[c.index]
+          if not pick.keepOpen then self.choice = nil end
+          pick.act(c.species)
+        end
+        return
+      end
 
       if input:wasPressed("b") then
         game.stack:pop()
@@ -292,20 +351,7 @@ return function(mod)
         Screens.push(game, "DexEntryMenu", species)
         return
       end
-      local Menu = require("src.ui.Menu")
-      local entries = {
-        { label = Strings("DATA"), onSelect = function()
-            Screens.push(game, "DexEntryMenu", species)
-          end },
-        -- keepOpen, like the original: a cry does not close the menu
-        { label = Strings("CRY"), keepOpen = true, onSelect = function()
-            require("src.core.Sound").playCry(game.data, species)
-          end },
-        { label = Strings("AREA"), onSelect = function()
-            Screens.push(game, "TownMap", { nestSpecies = species })
-          end },
-      }
-      game.stack:push(Menu.new(game, entries))
+      self.choice = { species = species, index = 1 }
     end
 
     -- ------- drawing
@@ -393,6 +439,19 @@ return function(mod)
       Font.draw(fit(line), TEXT_X, L.h - 22)
       Font.draw(fit(Strings("SEEN %d SEL:FILTER B:EXIT", self.seen)),
         TEXT_X, L.h - 12)
+
+      if self.choice then
+        -- top-right, clear of the footer and of the first cells
+        local bw = 7 * 8
+        local bx, by = L.w - bw - 8, 16
+        Font.drawBox(bx / 8, by / 8, bw / 8, #CHOICES + 2)
+        love.graphics.setColor(0, 0, 0, 1)
+        for i, c in ipairs(CHOICES) do
+          local y = by + 8 + (i - 1) * 8
+          if i == self.choice.index then Font.draw(">", bx + 4, y) end
+          Font.draw(c.label, bx + 12, y)
+        end
+      end
     end
 
     return self

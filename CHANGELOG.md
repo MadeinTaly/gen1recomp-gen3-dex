@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.2.1 — the menu broke the grid under it
+
+**Fixed: opening DATA / CRY / AREA collapsed the screen.** Three columns of
+five, the header cut off mid-word, cells the wrong size.
+
+`Game:draw` sizes the canvas from the **top state**:
+
+```lua
+local top = self.stack:top()
+if top and top.uiSize then Renderer:setUISize(top:uiSize())
+else Renderer:setUISize(Renderer.WIDTH, Renderer.HEIGHT) end
+```
+
+0.2.0 pushed the choice as a state of its own. That made *it* the top
+state — and it has no `uiSize()`, so the canvas went back to 160×144 while
+this grid, still visible underneath, carried on laying itself out for
+320×288.
+
+Two fixes, because either alone would leave the trap armed:
+
+- **The choice is drawn by this screen** instead of being pushed. Nothing
+  is ever on top while the grid is showing, so the surface cannot change
+  under it.
+- **The layout follows the surface being drawn**, not the one this screen
+  asked for. Any future overlay — a text box, another mod's prompt — now
+  finds a grid that lays itself out for the canvas it actually has.
+
+Both are assertions now: the suite shrinks the surface mid-test and checks
+that nothing runs off it, and checks that A pushes nothing.
+
 ## 0.2.0 — where does it live
 
 - **`AREA`: the map of where a species is found.** Press A and the menu now
