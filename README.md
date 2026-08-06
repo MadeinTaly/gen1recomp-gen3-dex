@@ -95,30 +95,17 @@ detail.
 **It does not change what you have caught.** It reads `save.pokedex` and
 writes nothing.
 
-## Tell me what this should do next
+## Ideas, and help building them
 
-The dex is a grid of pictures with four filters, and that is the whole of it.
-It could be a lot more, and the useful ideas are the ones I have not had.
+**Got an idea for something this should do?** Open an issue — there is a
+template for it. You do not need to know any Lua, and you do not need to
+have worked out how it would be built. Describe what you want and why.
 
-Open an issue if you want:
+**Want to build it yourself?** Open a pull request. Collaboration is welcome
+on any part of this.
 
-- **a way to sort or search it** — by type, by stat, by where it lives, by
-  what you still need to evolve;
-- **more to see on a species** — comparisons between two, a shiny toggle, a
-  family tree, the catch locations inline;
-- **a different thing entirely** — a "what can I still catch here" screen, a
-  living-dex tracker, a completion breakdown by route;
-- **an in-game use for it** — the dex knows things the rest of the game
-  never tells you.
-
-**Ideas are the contribution.** You do not have to build it, mock it up or
-know Lua — describe what you want and why, and it gets considered. The best
-ones ship.
-
-If an idea comes with art, the art has to be **yours**: nothing traced,
-edited or recoloured from a ROM, a fan game, a wiki or another mod. That is
-what keeps this shippable, and it is what the other authors on the index are
-owed.
+Anything you send that includes art has to be your own work — nothing
+traced, edited or recoloured from a ROM, a fan game, a wiki or another mod.
 
 ## Requirements and legal
 
