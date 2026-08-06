@@ -95,29 +95,30 @@ detail.
 **It does not change what you have caught.** It reads `save.pokedex` and
 writes nothing.
 
-## Help wanted
+## Tell me what this should do next
 
-This has never been looked at on a phone. It is verified by 63 checks and
-seen by nobody, and the last three bugs in it were all found from
-screenshots rather than from the suite.
+The dex is a grid of pictures with four filters, and that is the whole of it.
+It could be a lot more, and the useful ideas are the ones I have not had.
 
-What would help most:
+Open an issue if you want:
 
-- **tell me it looks wrong.** A photo of your screen with a note is worth
-  more than any test I can write. The grid, the dimmed *seen* state and the
-  AREA map are the three least-observed parts;
-- **more filters, or better ones.** ALL / OWNED / MISSING / SEEN ONLY is a
-  guess at what people actually want to sort by;
-- **layouts for other screen shapes.** CLASSIC and BIG are two points on a
-  line that probably has more useful points on it.
+- **a way to sort or search it** — by type, by stat, by where it lives, by
+  what you still need to evolve;
+- **more to see on a species** — comparisons between two, a shiny toggle, a
+  family tree, the catch locations inline;
+- **a different thing entirely** — a "what can I still catch here" screen, a
+  living-dex tracker, a completion breakdown by route;
+- **an in-game use for it** — the dex knows things the rest of the game
+  never tells you.
 
-The one hard rule is that anything you send has to be **yours**. No sprites,
-palettes, audio or text lifted from a ROM, a fan game, a wiki or another
-mod — not out of fussiness, but because this whole project stands on not
-redistributing other people's game data, and the other modders on the index
-deserve the same courtesy we would want.
+**Ideas are the contribution.** You do not have to build it, mock it up or
+know Lua — describe what you want and why, and it gets considered. The best
+ones ship.
 
-You do not need to know Lua for any of the above.
+If an idea comes with art, the art has to be **yours**: nothing traced,
+edited or recoloured from a ROM, a fan game, a wiki or another mod. That is
+what keeps this shippable, and it is what the other authors on the index are
+owed.
 
 ## Requirements and legal
 
