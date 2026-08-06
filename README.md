@@ -95,6 +95,30 @@ detail.
 **It does not change what you have caught.** It reads `save.pokedex` and
 writes nothing.
 
+## Help wanted
+
+This has never been looked at on a phone. It is verified by 63 checks and
+seen by nobody, and the last three bugs in it were all found from
+screenshots rather than from the suite.
+
+What would help most:
+
+- **tell me it looks wrong.** A photo of your screen with a note is worth
+  more than any test I can write. The grid, the dimmed *seen* state and the
+  AREA map are the three least-observed parts;
+- **more filters, or better ones.** ALL / OWNED / MISSING / SEEN ONLY is a
+  guess at what people actually want to sort by;
+- **layouts for other screen shapes.** CLASSIC and BIG are two points on a
+  line that probably has more useful points on it.
+
+The one hard rule is that anything you send has to be **yours**. No sprites,
+palettes, audio or text lifted from a ROM, a fan game, a wiki or another
+mod — not out of fussiness, but because this whole project stands on not
+redistributing other people's game data, and the other modders on the index
+deserve the same courtesy we would want.
+
+You do not need to know Lua for any of the above.
+
 ## Requirements and legal
 
 Lua source only: **no ROM, no ROM-derived data, and no game assets** —
