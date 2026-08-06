@@ -459,5 +459,99 @@ do
   T.check(kept, "another mod's start-menu row survives the wrap")
 end
 
+-- ------- the choice has a visible cursor
+--
+-- 0.2.1 drew one with Font.draw(">"). The game's charmap has no ">", and
+-- Font.encode answers a missing character with a space -- in the draw
+-- path, once, to the log -- so the arrow came out blank and every row
+-- looked the same. The cursor is a glyph CODE (Theme.cursor, $ED), which
+-- is what every menu in the engine uses.
+--
+-- Last in the file on purpose: Font.load changes what Font.width answers,
+-- and the width assertions above were written against the unloaded
+-- fallback.
+do
+  local Theme = require("src.ui.Theme")
+  Font.load(Data)
+  T.check(Font.encode("A")[1] ~= 0x7F,
+    "sanity: the font is loaded -- unloaded, EVERY glyph reads as a space "
+    .. "and the check below would pass for the wrong reason")
+  T.eq(Font.encode(">")[1], 0x7F,
+    "\">\" is not in the charmap: it encodes to a space, which is the bug")
+
+  store.grid = "big"
+  local s = factory.new(fakeGame(math.min(5, #ordered), 0))
+  press("a"); s:update()
+  T.check(s.choice ~= nil, "the choice is open")
+
+  -- Font.drawBox draws its border through drawCode too, so the corners
+  -- come back in the same list -- which is what locates the box.
+  local realDraw, realDrawCode = Font.draw, Font.drawCode
+  local function capture()
+    local texts, codes = {}, {}
+    Font.draw = function(t, x, y)
+      texts[#texts + 1] = { text = t, x = x, y = y, w = Font.width(t) }
+      return 0
+    end
+    Font.drawCode = function(c, x, y) codes[#codes + 1] = { code = c, x = x, y = y } end
+    s:draw()
+    Font.draw, Font.drawCode = realDraw, realDrawCode
+    local cursors, labels = {}, {}
+    for _, c in ipairs(codes) do
+      if c.code == Theme.cursor then cursors[#cursors + 1] = c end
+    end
+    for _, t in ipairs(texts) do
+      for _, c in ipairs(s.choices) do
+        if t.text == c.label then labels[c.label] = t end
+      end
+    end
+    return cursors, labels, codes
+  end
+
+  local cursors, labels, codes = capture()
+  T.eq(#cursors, 1, "exactly one cursor glyph is drawn")
+  T.check(labels.DATA and labels.CRY and labels.AREA,
+    "all three labels are drawn")
+  -- guarded: with no cursor at all every line below would crash on nil and
+  -- take the rest of the file with it, hiding the checks after this block
+  if cursors[1] and labels.DATA then
+    T.eq(cursors[1].y, labels.DATA.y, "it sits on the selected row")
+    T.check(cursors[1].x + 8 <= labels.DATA.x,
+      ("the cursor clears the label (cursor ends %d, label starts %d)")
+        :format(cursors[1].x + 8, labels.DATA.x))
+  end
+
+  -- inside the box, not spilling over its right border
+  local br
+  for _, c in ipairs(codes) do
+    if c.code == Font.BORDER.br then br = c end
+  end
+  T.check(br ~= nil, "the choice box is drawn")
+  local widest, name = 0, nil
+  for label, t in pairs(labels) do
+    if t.x + t.w > widest then widest, name = t.x + t.w, label end
+  end
+  if br then
+    T.check(widest <= br.x,
+      ("the box holds its longest label: %s ends at %d, the right border is at %d")
+        :format(tostring(name), widest, br.x))
+  end
+
+  -- and it follows the selection rather than being painted once
+  press("down"); s:update()
+  T.eq(s.choice.index, 2, "the choice moved to CRY")
+  local moved = capture()
+  T.eq(#moved, 1, "still exactly one cursor")
+  if moved[1] and labels.CRY and cursors[1] then
+    T.eq(moved[1].y, labels.CRY.y, "and it moved down with it")
+    T.check(moved[1].y ~= cursors[1].y, "which is a different row than before")
+  end
+
+  press("b"); s:update()
+  T.check(s.choice == nil, "B closes the choice")
+  local gone = capture()
+  T.eq(#gone, 0, "and no cursor is left behind on the grid")
+end
+
 run.release()
 T.finish("gen3_dex")
