@@ -54,14 +54,17 @@ local SEENX = math.max(1, math.floor(#ordered / 6))
 T.check(OWNED + SEENX <= #ordered, "the sample fits the dataset")
 
 local pressed = {}
+local pushedStates = {}
 local function fakeGame(ownedN, seenN)
+  pushedStates = {}
   local owned, seen = {}, {}
   for i = 1, ownedN do owned[ordered[i]] = true; seen[ordered[i]] = true end
   for i = ownedN + 1, ownedN + seenN do seen[ordered[i]] = true end
   return {
     data = Data,
     save = { pokedex = { owned = owned, seen = seen } },
-    stack = { pop = function() end },
+    stack = { pop = function() end,
+              push = function(_, st) pushedStates[#pushedStates + 1] = st end },
     input = { wasPressed = function(_, k) return pressed[k] end },
   }
 end
@@ -128,7 +131,10 @@ end
 -- ------- A opens the ENGINE's entry page, which is where Useful Dex lives
 
 do
+  -- A OPENS = DATA goes straight to the engine's own species page, which
+  -- is where a mod like Useful Dex hangs its extra pages
   local Screens = require("src.ui.Screens")
+  store.action = "data"
   local g = fakeGame(math.min(5, #ordered), 0)
   local s = factory.new(g)
   local pushed, arg
@@ -136,9 +142,48 @@ do
   Screens.push = function(_, id, a) pushed, arg = id, a end
   press("a"); s:update()
   Screens.push = realPush
+  store.action = "menu"
   T.eq(pushed, "DexEntryMenu",
-    "A opens the engine's own species page, not a copy of it")
+    "A OPENS=DATA reaches the engine's own species page, not a copy of it")
   T.eq(arg, ordered[1], "for the species under the cursor")
+end
+
+-- ------- DATA / CRY / AREA
+--
+-- The vanilla list offered all three (PokedexMenuItemsText). The first
+-- version of this grid went straight to DATA and silently dropped the
+-- other two -- including AREA, which is the engine's own
+-- LoadTownMap_Nest: TownMap with nestSpecies, blinking an icon on every
+-- map whose wild slots hold the species. The "where does this live"
+-- screen was already in the engine the whole time.
+do
+  local Screens = require("src.ui.Screens")
+  local g = fakeGame(math.min(5, #ordered), 0)
+  local s = factory.new(g)
+  press("a"); s:update()
+  T.eq(#pushedStates, 1, "A pushes a menu")
+
+  local menu = pushedStates[1]
+  local items = menu.items or menu.entries or {}
+  local labels, byLabel = {}, {}
+  for _, e in ipairs(items) do
+    labels[#labels + 1] = tostring(e.label)
+    byLabel[tostring(e.label)] = e
+  end
+  T.check(byLabel.DATA ~= nil,
+    "the menu offers DATA (" .. table.concat(labels, ",") .. ")")
+  T.check(byLabel.CRY ~= nil, "and CRY, which the first version lost")
+  T.check(byLabel.AREA ~= nil, "and AREA, the map of where it lives")
+
+  -- and AREA must reach the ENGINE's nest screen, not a lookalike
+  local pushed, arg
+  local realPush = Screens.push
+  Screens.push = function(_, id, a) pushed, arg = id, a end
+  if byLabel.AREA then pcall(byLabel.AREA.onSelect) end
+  Screens.push = realPush
+  T.eq(pushed, "TownMap", "AREA opens the town map")
+  T.eq(type(arg) == "table" and arg.nestSpecies or nil, ordered[1],
+    "asking it to blink the nests of this species")
 end
 
 do

@@ -18,7 +18,7 @@ file.
 | | |
 | --- | --- |
 | D-pad | move the cursor |
-| **A** | the species page — the engine's own, so other dex mods still apply |
+| **A** | `DATA` / `CRY` / `AREA` — see below |
 | **START** | jump a page |
 | **SELECT** | filter: `ALL` / `OWNED` / `MISSING` / `SEEN ONLY` |
 | **B** | out |
@@ -30,6 +30,22 @@ file.
 | `GRID` | `BIG` / `CLASSIC` | 320×288 with colour, or the Game Boy screen |
 | `REPLACE DEX` | on / off | off leaves the vanilla list and adds a separate `DEX GRID` row |
 | `START MENU` | on / off | whether either row is added at all |
+| `A OPENS` | `MENU` / `DATA` | the three-way menu, or straight to the species page |
+
+## Where does it live
+
+**A → AREA** puts the species on the town map, blinking on every place it
+can be found.
+
+That is not new code: it is the engine's own `LoadTownMap_Nest` — `TownMap`
+with `nestSpecies` — which walks `data.encounters` and marks every map
+whose wild slots hold the species. It is the Gen 3 *where does this live*
+screen, and it has been in the engine the whole time; the vanilla dex list
+reached it through the same DATA / CRY / AREA menu this one now offers.
+
+0.1.0 went straight to the species page and quietly lost both `CRY` and
+`AREA`. That was a regression against the list this grid replaces, not a
+simplification.
 
 ## Twenty-one colours
 

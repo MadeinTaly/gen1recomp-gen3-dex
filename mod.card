@@ -7,6 +7,7 @@ return {
   compat = { modApi = 2 },
   differences = {
     added = {
+      "A offers DATA / CRY / AREA like the vanilla list; AREA is the engine's own LoadTownMap_Nest -- TownMap with nestSpecies -- which blinks an icon on every map whose wild slots hold the species",
       "the dex list becomes a 5x4 grid of battle pics instead of 151 rows of text",
       "every OWNED species wears its own palette, through one tile-aligned palette zone per cell -- twenty-one at once, where the Game Boy hardware could show four",
       "seen-but-uncaught species are dimmed rather than hidden, and never-met ones are blanks",

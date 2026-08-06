@@ -1,7 +1,7 @@
 {
   "id": "gen3_dex",
   "name": "Gen 3 Dex",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
@@ -13,7 +13,7 @@
   "conflicts": [],
   "incompatible": [],
   "experimental": false,
-  "description": "The Pokedex as a grid of pictures instead of a list of names. Owned species wear their own palette -- twenty-one colours at once where the Game Boy could show four -- seen-but-uncaught are dimmed, and the rest are blanks. SELECT filters to OWNED, MISSING or SEEN ONLY. A opens the engine's own species page, so Useful Dex's extra pages still work.",
+  "description": "The Pokedex as a grid of pictures instead of a list of names. Owned species wear their own palette -- twenty-one colours at once where the Game Boy could show four -- seen-but-uncaught are dimmed, and the rest are blanks. SELECT filters to OWNED, MISSING or SEEN ONLY. A offers DATA / CRY / AREA like the vanilla list -- AREA is the engine's own nest map, which blinks every place the species lives. DATA goes to the engine's own species page, so Useful Dex's extra pages still work.",
   "github": "MadeinTaly/gen1recomp-gen3-dex",
   "permissions": [
     "engine_internals"

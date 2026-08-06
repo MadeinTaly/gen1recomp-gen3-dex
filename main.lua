@@ -76,6 +76,9 @@ return function(mod)
     -- POKeDEX open", not "is the mod on".
     { key = "replace", label = "REPLACE DEX", type = "toggle", default = true },
     { key = "menu", label = "START MENU", type = "toggle", default = true },
+    -- MENU is what the vanilla list did. See "what A does" below.
+    { key = "action", label = "A OPENS", type = "choice", default = "menu",
+      choices = { { "MENU", "menu" }, { "DATA", "data" } } },
   })
 
   local function layout()
@@ -263,13 +266,46 @@ return function(mod)
         self.index = (self.index + per) % n
       elseif input:wasPressed("a") then
         local e = self.entries[self.index + 1]
-        -- DexEntryMenu is the engine's own species page, which is also
-        -- where Useful Dex hangs its extra pages. An unknown species has
-        -- nothing to show, exactly as the vanilla list refuses it.
-        if e and e.state ~= "unknown" then
-          Screens.push(game, "DexEntryMenu", e.def.id)
-        end
+        -- An unknown species has nothing to show, exactly as the vanilla
+        -- list refuses it.
+        if e and e.state ~= "unknown" then self:open(e.def.id) end
       end
+    end
+
+    -- ------- what A does
+    --
+    -- The vanilla list did not open the entry page directly: it offered
+    -- DATA / CRY / AREA (engine/menus/pokedex.asm PokedexMenuItemsText).
+    -- The first version of this grid went straight to DATA and quietly
+    -- dropped the other two -- CRY, and the one worth having:
+    --
+    --   AREA is `TownMap` with `nestSpecies`, the engine's own
+    --   LoadTownMap_Nest. It blinks a nest icon on every map whose wild
+    --   slots hold the species, computed from data.encounters. It is the
+    --   Gen 3 "where does this live" screen, and it has been in the engine
+    --   the whole time.
+    --
+    -- DATA still goes to the engine's own DexEntryMenu rather than a copy,
+    -- so a mod that adds pages there keeps working.
+    function self:open(species)
+      if opt("action", "menu") == "data" then
+        Screens.push(game, "DexEntryMenu", species)
+        return
+      end
+      local Menu = require("src.ui.Menu")
+      local entries = {
+        { label = Strings("DATA"), onSelect = function()
+            Screens.push(game, "DexEntryMenu", species)
+          end },
+        -- keepOpen, like the original: a cry does not close the menu
+        { label = Strings("CRY"), keepOpen = true, onSelect = function()
+            require("src.core.Sound").playCry(game.data, species)
+          end },
+        { label = Strings("AREA"), onSelect = function()
+            Screens.push(game, "TownMap", { nestSpecies = species })
+          end },
+      }
+      game.stack:push(Menu.new(game, entries))
     end
 
     -- ------- drawing
