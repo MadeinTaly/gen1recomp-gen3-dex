@@ -65,6 +65,10 @@ return function(mod)
   local Assets = require("src.render.Assets")
   local Screens = require("src.ui.Screens")
   local Strings = require("src.core.Strings")
+  -- The cursor is a glyph CODE, not a character. ">" is not in the game's
+  -- charmap, and Font.encode answers a missing character with a space --
+  -- quietly, in the draw path -- so an ASCII arrow renders as a blank.
+  local Theme = require("src.ui.Theme")
 
   local SCREEN = "Gen3Dex"
 
@@ -446,10 +450,14 @@ return function(mod)
         local bx, by = L.w - bw - 8, 16
         Font.drawBox(bx / 8, by / 8, bw / 8, #CHOICES + 2)
         love.graphics.setColor(0, 0, 0, 1)
+        -- one tile in from the border for the cursor, one more for the
+        -- label -- the spacing every other menu in the game uses
         for i, c in ipairs(CHOICES) do
           local y = by + 8 + (i - 1) * 8
-          if i == self.choice.index then Font.draw(">", bx + 4, y) end
-          Font.draw(c.label, bx + 12, y)
+          if i == self.choice.index then
+            Font.drawCode(Theme.cursor, bx + 8, y)
+          end
+          Font.draw(c.label, bx + 16, y)
         end
       end
     end

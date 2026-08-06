@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.2.2 — the choice had no cursor
+
+**Fixed: nothing marked the selected row of DATA / CRY / AREA.** The three
+labels sat there identically and the only way to tell which one A would
+take was to count keypresses.
+
+0.2.1 drew the arrow with `Font.draw(">")`. The game's charmap has no `>`,
+and `Font.encode` answers a missing character by substituting a space:
+
+```lua
+if not reported[ch] and text:byte(span.from) >= 32 then
+  reported[ch] = true
+  Logger.warn("font: no glyph for %q", ch)
+end
+code = SPACE
+```
+
+One line in the log, once per character, from inside the draw path — and a
+blank where the cursor should be. The engine's own menus never had this
+problem because they draw a glyph **code**, not a character:
+`Theme.cursor` is `$ED`, the filled arrow from `charmap.asm`.
+
+So the choice now draws `Font.drawCode(Theme.cursor, ...)`, spaced the way
+every other menu in the game spaces it: one tile in from the border for the
+cursor, one more for the label.
+
+The test captures `Font.drawCode` and asserts a cursor glyph is drawn, that
+it sits on the selected row, that it moves when the selection moves, that
+it clears the label, that it stays inside the box, and that it is gone once
+the choice closes.
+
 ## 0.2.1 — the menu broke the grid under it
 
 **Fixed: opening DATA / CRY / AREA collapsed the screen.** Three columns of
