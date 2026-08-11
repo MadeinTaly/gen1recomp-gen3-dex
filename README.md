@@ -95,6 +95,28 @@ detail.
 **It does not change what you have caught.** It reads `save.pokedex` and
 writes nothing.
 
+## What is coming next
+
+**Overworld sprites in the CLASSIC grid.** `CLASSIC` halves a 56×56 battle
+picture into a 28-pixel cell, which is the best Gen 1 offers on its own —
+the four generic party icons are unreadable in a grid, so there was never a
+third option. [Wilds of Kanto](https://github.com/YoDrehDenSwagAuf/overworld-spawn-mod)
+(`overworld_wild_spawns`) changes that: it builds a per-species 16×16
+overworld sprite for its wilds and its followers, and 16 is a whole sprite
+in a 28-pixel cell rather than a halved one.
+
+The intent is that when that mod is installed and enabled and the layout is
+`CLASSIC`, the grid draws those sprites instead of the half-scale pictures.
+`BIG` keeps the battle pictures, for the reason the whole screen is built on:
+at 56 they draw at scale 1, and a 16-pixel sprite would have to be blown up
+to fill the cell. With that mod absent, nothing changes.
+
+It is not built yet, and it depends on that mod exposing a supported way to
+ask for a species' sprite rather than this one reaching into its files. If
+there turns out to be no such seam, it gets dropped rather than bodged — a
+cross-mod hack that breaks on someone else's next release is worse than the
+halved picture that has always worked.
+
 ## Ideas, and help building them
 
 **Got an idea for something this should do?** Open an issue — there is a
