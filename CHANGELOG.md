@@ -1,18 +1,19 @@
 # Changelog
 
-## 0.3.0-beta.1 — overworld sprites, if you have them (pre-release)
-
-A **pre-release**, and the toggle is **off**. Nothing here changes anything
-for anyone who does not go and switch it on and also have another mod
-installed.
+## 0.3.0 — overworld sprites, when you have them
 
 `CLASSIC` has always halved a 56×56 battle picture into its 28-pixel cell,
 because Gen 1 has nothing better to offer: its four generic party icons are
 unreadable in a grid. [Wilds of Kanto](https://github.com/YoDrehDenSwagAuf/overworld-spawn-mod)
 (`overworld_wild_spawns`) builds a per-species 16×16 overworld sprite, and 16
-fits that cell whole. Turn `OW SPRITES` on, and with that mod installed and
-enabled the `CLASSIC` grid draws its sprites instead of the halved pictures.
+fits that cell whole. With that mod installed and enabled, the `CLASSIC` grid
+draws its sprites instead of the halved pictures.
 
+- It is asked the way that mod is already proven to answer: through the
+  follower sprite service behind the icons it draws in the vanilla party
+  menu, which honours the **Sprite Style** chosen over there. Its general
+  `spriteProviders` seam is tried second, so the feature survives if that
+  party-menu path is ever retired.
 - `BIG` is untouched. At 56 a picture already draws at scale 1, and a
   16-pixel sprite would have to be blown up four times to fill the cell.
 - **A never-met species stays a blank**, and the other mod is not even asked
@@ -26,9 +27,8 @@ enabled the `CLASSIC` grid draws its sprites instead of the halved pictures.
   treated as a **miss**, not a hit. A silhouette in a dex grid hides which
   Pokémon it is; the halved picture does not.
 
-It is a pre-release because a cross-mod integration is the one kind of change
-a headless suite cannot prove, and the launcher offers the newest stable
-release — so nobody is updated into this by accident.
+**On by default**, because with that mod absent the feature is one `nil`
+check and the picture this grid always drew.
 
 ## 0.2.2 — the choice had no cursor
 

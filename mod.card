@@ -7,7 +7,7 @@ return {
   compat = { modApi = 2 },
   differences = {
     added = {
-      "OW SPRITES (experimental pre-release, off by default): with Wilds of Kanto (overworld_wild_spawns) installed and enabled, the CLASSIC grid draws its per-species 16x16 overworld sprite instead of the halved battle picture, reached through mod.find rather than a manifest dependency so it changes nothing for anyone without that mod",
+      "OW SPRITES (on by default): with Wilds of Kanto (overworld_wild_spawns) installed and enabled, the CLASSIC grid draws its per-species 16x16 overworld sprite instead of the halved battle picture, reached through mod.find rather than a manifest dependency so it changes nothing for anyone without that mod",
       "A offers DATA / CRY / AREA like the vanilla list; AREA is the engine's own LoadTownMap_Nest -- TownMap with nestSpecies -- which blinks an icon on every map whose wild slots hold the species",
       "the dex list becomes a 5x4 grid of battle pics instead of 151 rows of text",
       "every OWNED species wears its own palette, through one tile-aligned palette zone per cell -- twenty-one at once, where the Game Boy hardware could show four",

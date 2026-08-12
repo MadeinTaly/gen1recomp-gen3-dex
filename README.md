@@ -31,7 +31,7 @@ file.
 | `REPLACE DEX` | on / off | off leaves the vanilla list and adds a separate `DEX GRID` row |
 | `START MENU` | on / off | whether either row is added at all |
 | `A OPENS` | `MENU` / `DATA` | the three-way menu, or straight to the species page |
-| `OW SPRITES` | on / off | draw Wilds of Kanto's overworld sprites in the `CLASSIC` grid (off by default; see below) |
+| `OW SPRITES` | on / off | draw Wilds of Kanto's overworld sprites in the `CLASSIC` grid (on by default; does nothing without that mod — see below) |
 
 ## Where does it live
 
@@ -96,9 +96,9 @@ detail.
 **It does not change what you have caught.** It reads `save.pokedex` and
 writes nothing.
 
-## OW SPRITES (experimental pre-release)
+## OW SPRITES
 
-**Off by default.** `CLASSIC` halves a 56×56 battle picture into a 28-pixel
+**On by default, and it does nothing without that mod.** `CLASSIC` halves a 56×56 battle picture into a 28-pixel
 cell, which is the best Gen 1 offers on its own — its four generic party
 icons are unreadable in a grid, so there was never a third option.
 [Wilds of Kanto](https://github.com/YoDrehDenSwagAuf/overworld-spawn-mod)
@@ -106,9 +106,15 @@ icons are unreadable in a grid, so there was never a third option.
 overworld sprite, and 16 is a whole sprite in a 28-pixel cell rather than a
 halved one.
 
-Turn `OW SPRITES` on and, when that mod is installed and enabled and the
-layout is `CLASSIC`, the grid draws its sprites instead of the halved
-pictures. Without that mod, or in `BIG`, nothing changes at all.
+With that mod installed and enabled and the layout set to `CLASSIC`, the
+grid draws its sprites instead of the halved pictures. Without that mod, or
+in `BIG`, nothing changes at all.
+
+It is asked the same way that mod already draws the icons you see in the
+vanilla party menu: through its follower sprite service, which honours
+whatever **Sprite Style** you picked over there. Its general
+`spriteProviders` seam is tried second, so the feature survives if that
+party-menu path is ever retired.
 
 `BIG` keeps the battle pictures for the reason the whole screen is built on:
 at 56 they draw at scale 1, and a 16-pixel sprite would have to be blown up
@@ -126,10 +132,10 @@ nothing better, that counts as a miss and the battle picture is drawn
 instead: a silhouette in a dex grid hides which Pokémon it is, and the
 halved picture does not.
 
-This ships as a **pre-release**, and the toggle is off, because a cross-mod
-integration is the one kind of change a headless test suite cannot prove.
-The launcher offers you the newest stable release, so you will not be
-updated into this by accident.
+It is **on by default** because it cannot change anything for anyone who
+does not have Wilds of Kanto installed — without it the whole feature is one
+`nil` check and the picture this grid always drew. If it ever misbehaves
+against a future release of that mod, turning it off restores exactly that.
 
 ## Ideas, and help building them
 

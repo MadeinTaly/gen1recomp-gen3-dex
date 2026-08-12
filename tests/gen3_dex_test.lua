@@ -725,5 +725,87 @@ do
   T.eq(#gone, 0, "and no cursor is left behind on the grid")
 end
 
+
+-- ------- the party-menu resolver is preferred over spriteProviders
+--
+-- Wilds of Kanto draws the sprites a player can already see in the vanilla
+-- party menu by patching PartyMenu.drawIcon and going through its follower
+-- sprite service (lib/follower/sprite_service.lua:222,384), not through
+-- spriteProviders. So that resolver is asked first -- it is the path with a
+-- screenshot behind it -- and the never-met gate must survive the change,
+-- because a sprite on an unmet species is a spoiler whichever seam drew it.
+
+do
+  local Renderer = require("src.render.Renderer")
+  store.ow_sprites = true
+  store.grid = "classic"
+
+  local function handleWith(partyFn, providerFn)
+    return { id = "overworld_wild_spawns", version = "1.14.0", exports = {
+      follower = { spriteService = {
+        resolvePartyIconDef = function(_, m, g) return partyFn(m, g) end,
+      } },
+      spriteProviders = providerFn and { resolve = providerFn } or nil,
+    } }
+  end
+
+  local function drawWith(handle, ownedN, seenN)
+    local g = fakeGame(ownedN, seenN)
+    local s = factory.new(g)
+    s.owHandle = function() return handle end
+    local w0, h0 = Renderer.uiWidth, Renderer.uiHeight
+    Renderer.uiWidth, Renderer.uiHeight = select(1, s:uiSize()), select(2, s:uiSize())
+    s:draw()
+    Renderer.uiWidth, Renderer.uiHeight = w0, h0
+  end
+
+  local ownedN = math.min(5, math.max(0, #ordered - 2))
+  local seenN = math.min(3, math.max(0, #ordered - ownedN - 1))
+
+  -- both offered: the party resolver answers, the provider is never reached
+  do
+    local partyCalls, providerCalls = 0, 0
+    drawWith(handleWith(function()
+      partyCalls = partyCalls + 1
+      return { image = "assets/party_fake.png", frames = 1 }
+    end, function()
+      providerCalls = providerCalls + 1
+      return { def = { image = "assets/prov_fake.png", frames = 6 },
+               providerId = "pokemmo" }
+    end), ownedN, seenN)
+    T.check(partyCalls > 0, "the party resolver is asked")
+    T.eq(providerCalls, 0, "and spriteProviders is not reached behind it")
+  end
+
+  -- the never-met gate holds on the new path too
+  do
+    local asked = {}
+    drawWith(handleWith(function(m)
+      asked[m and m.species] = true
+      return { image = "assets/party_fake.png", frames = 1 }
+    end), ownedN, seenN)
+    for i = 1, ownedN + seenN do
+      T.check(asked[ordered[i]],
+        ("owned/seen species %s reaches the party resolver"):format(ordered[i]))
+    end
+    for i = ownedN + seenN + 1, math.min(#ordered, ownedN + seenN + 10) do
+      T.check(not asked[ordered[i]],
+        ("never-met species %s is not asked, on this seam either")
+          :format(ordered[i]))
+    end
+  end
+
+  -- a party resolver that throws is caught, and the grid still draws
+  do
+    local okDraw = pcall(function()
+      drawWith(handleWith(function() error("boom") end), ownedN, seenN)
+    end)
+    T.check(okDraw, "a throwing party resolver does not take the frame down")
+  end
+
+  store.ow_sprites = false
+end
+
+
 run.release()
 T.finish("gen3_dex")

@@ -90,7 +90,7 @@ return function(mod)
     -- costs nobody else anything; anyone who has that mod and wants the
     -- CLASSIC grid drawn from its 16x16 overworld sprites instead of the
     -- halved battle pic can switch it on.
-    { key = "ow_sprites", label = "OW SPRITES", type = "toggle", default = false },
+    { key = "ow_sprites", label = "OW SPRITES", type = "toggle", default = true },
   })
 
   local Renderer = require("src.render.Renderer")
@@ -254,27 +254,77 @@ return function(mod)
 
       local handle = self.owHandle()
       if not handle or not handle.exports then return nil end
-      local providers = handle.exports.spriteProviders
-      if not providers or type(providers.resolve) ~= "function" then
-        return nil
+      local ex = handle.exports
+
+      -- ------- two ways to ask, in the order they are known to work
+      --
+      -- That mod already draws these sprites in the vanilla party menu, and
+      -- it does it by patching PartyMenu.drawIcon and resolving through its
+      -- follower sprite service (lib/follower/sprite_service.lua:222,384),
+      -- NOT through spriteProviders. So the party-menu resolver is the code
+      -- path with a screenshot behind it, and asking anything else first
+      -- would be preferring the tidier seam to the working one.
+      --
+      -- It wants a Pokemon rather than a species id. A dex has no Pokemon,
+      -- only a species, so it is handed the smallest honest stand-in: a
+      -- table with the species on it. Form and shininess are absent because
+      -- a dex entry has neither -- it is a species, not an individual.
+      local function viaPartyIcon()
+        local service = ex.follower and ex.follower.spriteService
+        if not service or type(service.resolvePartyIconDef) ~= "function" then
+          return nil
+        end
+        local okDef, sd = pcall(function()
+          return service:resolvePartyIconDef({ species = def.id }, game)
+        end)
+        if not okDef or type(sd) ~= "table" or not sd.image then return nil end
+        return sd, service
       end
 
+      -- spriteProviders second: the documented general seam, kept because
+      -- it answers for the wild/overworld styles the party resolver has no
+      -- opinion on, and because it is what survives if that mod ever
+      -- retires its party-menu patch.
+      --
       -- style nil takes the player's own Sprite Style setting -- whatever
       -- they picked for their followers is what they should see here.
-      local ok, result = pcall(function()
-        return providers:resolve(nil, def.id, nil, game)
-      end)
-      if not ok or type(result) ~= "table" then return nil end
-      -- resolve() always returns a table and falls back to a black
-      -- silhouette when everything else fails. A silhouette in a dex grid
-      -- is worse than the halved battle picture, which at least shows you
-      -- which Pokemon it is -- treat it as a miss, not a hit.
-      if result.error or result.providerId == OW_BLACK then return nil end
+      local function viaProviders()
+        local providers = ex.spriteProviders
+        if not providers or type(providers.resolve) ~= "function" then
+          return nil
+        end
+        local ok, result = pcall(function()
+          return providers:resolve(nil, def.id, nil, game)
+        end)
+        if not ok or type(result) ~= "table" then return nil end
+        -- resolve() always returns a table and falls back to a black
+        -- silhouette when everything else fails. A silhouette in a dex grid
+        -- is worse than the halved battle picture, which at least shows you
+        -- which Pokemon it is -- treat it as a miss, not a hit.
+        if result.error or result.providerId == OW_BLACK then return nil end
+        local sd = result.def
+        if not sd or not sd.image then return nil end
+        return sd
+      end
 
-      local sdef = result.def
-      if not sdef or not sdef.image then return nil end
-      local okImg, img = pcall(Assets.image, sdef.image)
-      if not okImg or not img then return nil end
+      local sdef, service = viaPartyIcon()
+      if not sdef then sdef = viaProviders() end
+      if not sdef then return nil end
+
+      -- the service's own loader when it answered, because it caches and
+      -- knows about that mod's true-colour handling; Assets.image otherwise
+      local img
+      if service and type(service.getPartyIconImage) == "function" then
+        local okOwn, own = pcall(function()
+          return service:getPartyIconImage(sdef.image)
+        end)
+        if okOwn then img = own end
+      end
+      if not img then
+        local okImg, loaded = pcall(Assets.image, sdef.image)
+        if okImg then img = loaded end
+      end
+      if not img then return nil end
 
       local n = sdef.frames
       if type(n) ~= "number" or n < 1 then n = 1 end
