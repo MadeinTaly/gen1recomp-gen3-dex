@@ -83,6 +83,14 @@ return function(mod)
     -- MENU is what the vanilla list did. See "what A does" below.
     { key = "action", label = "A OPENS", type = "choice", default = "menu",
       choices = { { "MENU", "menu" }, { "DATA", "data" } } },
+    -- Off by default: this reaches into Wilds of Kanto
+    -- (`overworld_wild_spawns`) through its `mod.find` export, an
+    -- experimental cross-mod seam for a prerelease. It only ever does
+    -- anything when that mod is installed and enabled, so leaving it off
+    -- costs nobody else anything; anyone who has that mod and wants the
+    -- CLASSIC grid drawn from its 16x16 overworld sprites instead of the
+    -- halved battle pic can switch it on.
+    { key = "ow_sprites", label = "OW SPRITES", type = "toggle", default = false },
   })
 
   local Renderer = require("src.render.Renderer")
@@ -210,6 +218,89 @@ return function(mod)
       if ok then return img end
       return nil
     end
+
+    -- ------- Wilds of Kanto's overworld sprites, CLASSIC only
+    --
+    -- `overworld_wild_spawns` renders a per-species 16x16 overworld sprite
+    -- that fits a 28-pixel CLASSIC cell whole, instead of the halved 56x56
+    -- battle picture this screen falls back to everywhere else. See
+    -- SEAM.md for what is verified here and what is not: reached only
+    -- through the engine's own `mod.find`, never a manifest dependency,
+    -- and every call into the other mod's code is `pcall`ed -- it is
+    -- someone else's release cycle, and a throw in a draw loop takes the
+    -- frame down.
+    --
+    -- `self.owHandle` rather than a bare local so a test can substitute it
+    -- without a second mod on the loader.
+    local OW_ID = "overworld_wild_spawns"
+    local OW_BLACK = "black" -- SpriteProviders.ID.BLACK: a silhouette, not a hit
+
+    function self.owHandle()
+      local ok, handle = pcall(mod.find, OW_ID)
+      if not ok then return nil end
+      return handle
+    end
+
+    -- speciesId -> a table shaped for picScale (getWidth/getHeight) plus
+    -- the image and quad to draw, or `false` for a species already tried
+    -- and missed. Kept for the life of THIS screen: resolve() walks a
+    -- provider chain, and calling it twenty times a frame is not free.
+    local owCache = {}
+
+    local function owSprite(def)
+      local cached = owCache[def.id]
+      if cached ~= nil then return cached or nil end
+      owCache[def.id] = false
+
+      local handle = self.owHandle()
+      if not handle or not handle.exports then return nil end
+      local providers = handle.exports.spriteProviders
+      if not providers or type(providers.resolve) ~= "function" then
+        return nil
+      end
+
+      -- style nil takes the player's own Sprite Style setting -- whatever
+      -- they picked for their followers is what they should see here.
+      local ok, result = pcall(function()
+        return providers:resolve(nil, def.id, nil, game)
+      end)
+      if not ok or type(result) ~= "table" then return nil end
+      -- resolve() always returns a table and falls back to a black
+      -- silhouette when everything else fails. A silhouette in a dex grid
+      -- is worse than the halved battle picture, which at least shows you
+      -- which Pokemon it is -- treat it as a miss, not a hit.
+      if result.error or result.providerId == OW_BLACK then return nil end
+
+      local sdef = result.def
+      if not sdef or not sdef.image then return nil end
+      local okImg, img = pcall(Assets.image, sdef.image)
+      if not okImg or not img then return nil end
+
+      local n = sdef.frames
+      if type(n) ~= "number" or n < 1 then n = 1 end
+      local okDim, iw, ih = pcall(function()
+        return img:getWidth(), img:getHeight()
+      end)
+      if not okDim or not iw or not ih or iw <= 0 or ih <= 0 then
+        return nil
+      end
+      -- frames stack vertically, frame 0 -- the idle/down frame -- on top.
+      -- Never hardcode 16x96: other providers answer other sizes, and the
+      -- mod has a "true size" feature that changes them.
+      local fh = ih / n
+      local okQuad, quad = pcall(love.graphics.newQuad, 0, 0, iw, fh, iw, ih)
+      if not okQuad or not quad then return nil end
+
+      local sprite = {
+        image = img,
+        quad = quad,
+        getWidth = function() return iw end,
+        getHeight = function() return fh end,
+      }
+      owCache[def.id] = sprite
+      return sprite
+    end
+    self.owSprite = owSprite
 
     -- The PREFERENCE, not the current surface. Game:draw asks this to
     -- decide how big the canvas should be, so answering with the size it
@@ -408,15 +499,32 @@ return function(mod)
         love.graphics.rectangle("line", x + 0.5, y + 0.5, L.cell - 1, L.cell - 1)
         love.graphics.setColor(1, 1, 1, 1)
         if e then
-          local img = e.state ~= "unknown" and picOf(e.def) or nil
-          if img then
-            local k = picScale(img, L.cell)
-            local w, h = img:getWidth() * k, img:getHeight() * k
-            -- a seen-but-uncaught species is dimmed rather than hidden:
-            -- you met it, you just do not own it
-            if e.state == "seen" then love.graphics.setColor(1, 1, 1, 0.45) end
-            love.graphics.draw(img, x + (L.cell - w) / 2, y + (L.cell - h) / 2,
-              0, k, k)
+          -- A never-met species stays a blank in EITHER path: e.state is
+          -- checked before either picOf or owSprite is even asked.
+          local drawnOw = false
+          if e.state ~= "unknown" and L == LAYOUT.classic
+             and opt("ow_sprites", false) then
+            local sprite = owSprite(e.def)
+            if sprite then
+              local k = picScale(sprite, L.cell)
+              local w, h = sprite:getWidth() * k, sprite:getHeight() * k
+              if e.state == "seen" then love.graphics.setColor(1, 1, 1, 0.45) end
+              drawnOw = pcall(love.graphics.draw, sprite.image, sprite.quad,
+                x + (L.cell - w) / 2, y + (L.cell - h) / 2, 0, k, k)
+              if not drawnOw then love.graphics.setColor(1, 1, 1, 1) end
+            end
+          end
+          if not drawnOw then
+            local img = e.state ~= "unknown" and picOf(e.def) or nil
+            if img then
+              local k = picScale(img, L.cell)
+              local w, h = img:getWidth() * k, img:getHeight() * k
+              -- a seen-but-uncaught species is dimmed rather than hidden:
+              -- you met it, you just do not own it
+              if e.state == "seen" then love.graphics.setColor(1, 1, 1, 0.45) end
+              love.graphics.draw(img, x + (L.cell - w) / 2, y + (L.cell - h) / 2,
+                0, k, k)
+            end
           end
         end
         love.graphics.setColor(0, 0, 0, 1)
