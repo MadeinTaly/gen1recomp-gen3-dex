@@ -95,6 +95,33 @@ return function(mod)
 
   local Renderer = require("src.render.Renderer")
 
+  -- ------- which generation is running
+  --
+  -- Off the live game, never a version allow-list. A Gen 2 save carries
+  -- `generation` (src/core/gen2/Save.lua:344); before a save exists there is
+  -- nothing on this screen to draw anyway.
+  local function isGen2(game)
+    local save = game and game.save
+    return save ~= nil and save.generation == 2
+  end
+
+  -- ------- the summary screen, per generation
+  --
+  -- Gold's builtins carry a Gen2 prefix and there is no Gen2DexEntryMenu and
+  -- no Gen2TownMap: Gold folds both into ONE screen. Gen2PokedexMenu takes
+  -- `entrySpecies` and opens straight onto that species' page
+  -- (src/ui/gen2/PokedexMenu.lua:230), and its own AREA view is the nest map
+  -- (`self.view = "area"`, :358) -- so DATA and AREA are the same push there,
+  -- and AREA is one button further in rather than a screen this mod can open
+  -- for you.
+  local function pushEntry(game, species)
+    if isGen2(game) then
+      Screens.push(game, "Gen2PokedexMenu", { entrySpecies = species })
+    else
+      Screens.push(game, "DexEntryMenu", species)
+    end
+  end
+
   -- What the player asked for.
   local function wanted()
     local ok, value = pcall(function() return mod.options:get("grid") end)
@@ -107,7 +134,13 @@ return function(mod)
   -- back to 160x144 while this one is still visible underneath. Laying out
   -- for 320x288 on that surface draws three of five columns and runs the
   -- header off the edge, which is exactly what the first BIG dex did.
-  local function layout()
+  -- On Gold there is no BIG at all: src/core/Game2.lua never asks the top
+  -- state for a uiSize() the way src/core/Game.lua:471-475 does -- it scales
+  -- one 160x144 canvas through Chrome.fitScale -- so a 320x288 layout would
+  -- be drawn into a Game Boy frame and fall off the edge of it. The option is
+  -- not written back: a Gen 1 save that chose BIG is still BIG on Red.
+  local function layout(game)
+    if isGen2(game) then return LAYOUT.classic end
     local L = wanted()
     local w, h = Renderer.uiWidth or Renderer.WIDTH, Renderer.uiHeight or Renderer.HEIGHT
     if w >= L.w and h >= L.h then return L end
@@ -125,8 +158,17 @@ return function(mod)
   -- Read fresh on every open: a species caught since the last visit has to
   -- show up, and the seen/owned tables are the save's own.
 
+  -- Gold spells the caught half `caught` where Gen 1 says `owned`
+  -- (src/core/gen2/Save.lua:216), and the grid asks this table for every
+  -- cell it paints -- so on a Gold boot without this the whole dex reads as
+  -- "seen but never caught", which is a silent, total wrong answer rather
+  -- than an error.
   local function dexOf(game)
-    return game.save.pokedex or { seen = {}, owned = {} }
+    local dex = game.save.pokedex or { seen = {}, owned = {} }
+    return {
+      seen = dex.seen or {},
+      owned = dex.owned or dex.caught or {},
+    }
   end
 
   local function roster(game)
@@ -135,8 +177,15 @@ return function(mod)
     for _, def in pairs(game.data.pokemon) do
       if def.dex then byDex[def.dex] = def end
     end
+    -- `constants` routes to data.gen2Constants on a Gold boot, so the Gen 1
+    -- path can read nil here -- and falling back to 151 would cut Johto off
+    -- at Mew. The highest dex number actually present is the honest ceiling,
+    -- and it also covers a mod that adds species past the cart's own end.
+    local highest = 0
+    for n in pairs(byDex) do if n > highest then highest = n end end
+    local size = math.max(tonumber(constants.dexSize) or 0, highest, 151)
     local out = {}
-    for n = 1, constants.dexSize or 151 do
+    for n = 1, size do
       if byDex[n] then out[#out + 1] = { n = n, def = byDex[n] } end
     end
     return out
@@ -193,7 +242,7 @@ return function(mod)
     end
 
     local function cellRect(slot)
-      local L = layout()
+      local L = layout(game)
       local c, r = slot % COLS, math.floor(slot / COLS)
       return L.gridX + c * L.cell, L.gridY + r * L.cell
     end
@@ -356,7 +405,10 @@ return function(mod)
     -- decide how big the canvas should be, so answering with the size it
     -- happens to be right now would mean it could never grow.
     function self:uiSize()
-      local L = wanted()
+      -- Gold never asks (src/core/Game2.lua scales one 160x144 canvas), but
+      -- answering honestly costs nothing and keeps the two arms saying the
+      -- same thing about what this screen is.
+      local L = isGen2(game) and LAYOUT.classic or wanted()
       return L.w, L.h
     end
 
@@ -372,7 +424,7 @@ return function(mod)
     -- cells stay on the base palette on purpose: a species you have met
     -- but not caught should not be advertising its colours.
     function self:sgbPalettes()
-      local L = layout()
+      local L = layout(game)
       if L.cell % 8 ~= 0 or L.gridX % 8 ~= 0 or L.gridY % 8 ~= 0 then
         return nil
       end
@@ -407,14 +459,21 @@ return function(mod)
     -- so the surface never changes under it.
     local CHOICES = {
       { label = "DATA", act = function(species)
-          Screens.push(game, "DexEntryMenu", species)
+          pushEntry(game, species)
         end },
       -- like the original, a cry does not close the menu
       { label = "CRY", keepOpen = true, act = function(species)
           require("src.core.Sound").playCry(game.data, species)
         end },
       { label = "AREA", act = function(species)
-          Screens.push(game, "TownMap", { nestSpecies = species })
+          -- Gold has no TownMap screen of its own: its nest map is the AREA
+          -- view inside the dex entry, so this lands on the entry and the
+          -- player is one button from the map instead of on it.
+          if isGen2(game) then
+            pushEntry(game, species)
+          else
+            Screens.push(game, "TownMap", { nestSpecies = species })
+          end
         end },
     }
     self.choices = CHOICES
@@ -493,7 +552,7 @@ return function(mod)
     -- so a mod that adds pages there keeps working.
     function self:open(species)
       if opt("action", "menu") == "data" then
-        Screens.push(game, "DexEntryMenu", species)
+        pushEntry(game, species)
         return
       end
       self.choice = { species = species, index = 1 }
@@ -506,7 +565,7 @@ return function(mod)
     -- other, and text drawn there prints across the grid.
 
     local TEXT_X = 4
-    local function textMax() return layout().w - TEXT_X * 2 end
+    local function textMax() return layout(game).w - TEXT_X * 2 end
 
     local function fit(text)
       text = tostring(text or "")
@@ -534,7 +593,7 @@ return function(mod)
     end
 
     function self:draw()
-      local L = layout()
+      local L = layout(game)
       love.graphics.clear(1, 1, 1, 1)
       love.graphics.setColor(0, 0, 0, 1)
 

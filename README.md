@@ -4,6 +4,17 @@ The Pokédex as a **grid of pictures** instead of a list of names, for
 [Gen1Recomp](https://github.com/bryanthaboi/gen1recomp) — and every species
 you own wearing **its own colours**.
 
+## On Gold
+
+Runs on Pokémon Gold as well as Red, Blue and Yellow. The dex covers Johto
+rather than stopping at Mew, the caught half is read where Gold actually keeps
+it, and **DATA** and **AREA** both open Gold's own dex entry — its AREA view is
+the nest map, so the map is one button further in.
+
+`GRID BIG` is read as `CLASSIC` there: Gold's boot scales a single 160×144
+canvas and never asks a screen how big it would like to be. The setting is not
+overwritten, so a Gen 1 save keeps whatever it chose.
+
 ## Install
 
 Download `gen3_dex-<version>.zip` from [Releases](../../releases), then

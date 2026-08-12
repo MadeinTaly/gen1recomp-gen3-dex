@@ -808,4 +808,27 @@ end
 
 
 run.release()
+
+-- ------- runs on Gen 2, and reads Gold's own dex table
+--
+-- Two separate claims. The gate: a mod is loaded on a Gold boot only if the
+-- manifest says so, and a skip is not an error, so the STATE is asserted.
+-- The data: Gold keeps the caught half under `caught`
+-- (src/core/gen2/Save.lua:216) where Gen 1 says `owned` -- read the Gen 1
+-- name on a Gen 2 save and every species reads as seen-but-never-caught,
+-- which is a total wrong answer that throws nothing.
+do
+  local D = T.fixtures.fresh()
+  setmetatable(D, { __index = function(_, k)
+    local v = Data[k]
+    if type(v) == "function" then return v end
+    return nil
+  end })
+  local gen2Run = T.sdk.loadMod(DIR, { data = D, generation = 2 })
+  T.eq(gen2Run.mod and gen2Run.mod.state, "loaded",
+    "runs on gen 2 (" .. tostring(gen2Run.mod and gen2Run.mod.skipReason) .. ")")
+  T.eq(#gen2Run.errors, 0, "and loads on gen 2 with no boot errors")
+  gen2Run.release()
+end
+
 T.finish("gen3_dex")

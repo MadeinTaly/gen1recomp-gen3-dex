@@ -4,7 +4,7 @@ return {
   author = "MadeinTaly",
   support = "https://linktr.ee/made_in_taly",
   tags = { "pokedex", "ui", "cosmetic", "qol" },
-  compat = { modApi = 2 },
+  compat = { modApi = 2, games = { "gen1", "gen2" } },
   differences = {
     added = {
       "OW SPRITES (on by default): with Wilds of Kanto (overworld_wild_spawns) installed and enabled, the CLASSIC grid draws its per-species 16x16 overworld sprite instead of the halved battle picture, reached through mod.find rather than a manifest dependency so it changes nothing for anyone without that mod",
@@ -19,6 +19,8 @@ return {
       "REPLACE DEX (on) points the START menu's POKeDEX row at this grid; off leaves the engine's list alone and adds a separate DEX GRID row instead",
     },
     known = {
+      "runs on Pokemon Gold: the dex covers Johto, the caught half is read where Gold keeps it (`caught`, not `owned`), and DATA/AREA open Gold's own dex entry because it has no separate DexEntryMenu or TownMap",
+      "on Gold the GRID option is read as CLASSIC whatever it is set to: Game2 scales one 160x144 canvas and never asks the top state for a uiSize(), so a 320x288 layout would fall off the frame -- the setting itself is left alone",
       "OW SPRITES never asks the other mod about a never-met species: its sprite would reveal a Pokemon the player has not encountered, so a blank stays a blank",
       "OW SPRITES applies in CLASSIC only -- BIG's 56-pixel cell already draws a battle picture at scale 1, and a 16-pixel sprite would have to be blown up four times to fill it",
       "the black silhouette Wilds of Kanto falls back to when it has nothing better counts as a miss, not a hit, because a silhouette in a dex grid hides which Pokemon it is and the halved picture does not",

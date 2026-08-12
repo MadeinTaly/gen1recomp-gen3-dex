@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.4.0 — it runs on Gold
+
+`"games": ["gen1", "gen2"]`. Four things had to be true, and three of them
+were wrong in ways that throw nothing at all:
+
+- **The caught half of the dex.** Gold keeps it under `caught`
+  (`src/core/gen2/Save.lua:216`) where Gen 1 says `owned`. Reading the Gen 1
+  name on a Gold save answers nil for every species, so the grid would have
+  drawn a complete dex as seen-but-never-caught — every picture dimmed, every
+  count zero, and no error anywhere.
+
+- **Johto exists.** The roster ran to `constants.dexSize or 151`, and
+  `constants` routes to `data.gen2Constants` on Gold, so the Gen 1 read comes
+  back nil and the fallback stopped the dex at Mew. The ceiling is now the
+  highest dex number actually present, which also covers a mod that adds
+  species past the cart's own end.
+
+- **DATA and AREA.** Gold has no `DexEntryMenu` and no `TownMap`: it folds
+  both into one screen. `Gen2PokedexMenu` takes `entrySpecies` and opens
+  straight onto that species' page, and its own AREA view *is* the nest map —
+  so both entries land there, and AREA is one button further in rather than a
+  screen this mod opens for you.
+
+- **GRID BIG is CLASSIC on Gold.** `src/core/Game2.lua` never asks the top
+  state for a `uiSize()` the way `src/core/Game.lua:471` does; it scales one
+  160×144 canvas. A 320×288 layout would have been drawn into a Game Boy frame
+  and fallen off the edge. The option is not written back, so a Gen 1 save
+  that chose BIG is still BIG on Red.
+
+Per-species palettes are a Super Game Boy trick and Gold draws in colour of its
+own, so that part simply does not apply there.
+
 ## 0.3.0 — overworld sprites, when you have them
 
 `CLASSIC` has always halved a 56×56 battle picture into its 28-pixel cell,
