@@ -11,9 +11,16 @@ rather than stopping at Mew, the caught half is read where Gold actually keeps
 it, and **DATA** and **AREA** both open Gold's own dex entry — its AREA view is
 the nest map, so the map is one button further in.
 
-`GRID BIG` is read as `CLASSIC` there: Gold's boot scales a single 160×144
-canvas and never asks a screen how big it would like to be. The setting is not
-overwritten, so a Gen 1 save keeps whatever it chose.
+`GRID BIG` draws its full 320×288 grid there too, the same size as on Red —
+Gold has no `uiSize()` a screen can ask for, so it gets there through Gold's
+own **widescreen contract** instead: the same `drawsWidescreen()` /
+`drawWidescreen(w, h)` pair the PC, the summary screen and the Pokédex's own
+menu already use to fill the window instead of sitting in a small letterboxed
+box. It falls back to `CLASSIC` only if the window itself is too small to fit
+320×288 at a whole-number scale. It draws **without** the per-species
+palettes described below — Gold is a Game Boy Color game and colours its own
+pictures, so that half of `BIG` is a Super Game Boy trick that does not
+apply there.
 
 ## Install
 
@@ -86,10 +93,13 @@ possible: a palette zone is addressed in tiles. `CLASSIC`'s 28-pixel cell
 is three and a half tiles and can carry no zone at all, so `CLASSIC` is
 greyscale by necessity rather than by choice.
 
-`BIG` asks the renderer for its surface through the engine's own `uiSize()`
-hook, which `Game:draw` reads from the top state every frame — so the
-moment this screen is not on top the game is back on 160×144, with nothing
-to restore.
+On Red, Blue and Yellow, `BIG` asks the renderer for its surface through the
+engine's own `uiSize()` hook, which `Game:draw` reads from the top state
+every frame — so the moment this screen is not on top the game is back on
+160×144, with nothing to restore. Gold has no such hook to ask; it grants a
+bigger surface only to a screen that paints its own through
+`drawWidescreen()`, and this screen does exactly that when `BIG` is picked
+there, at the same 320×288.
 
 ## What it does not do
 

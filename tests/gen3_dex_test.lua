@@ -346,6 +346,71 @@ do
   store.grid = "big"
 end
 
+-- ------- Gen 2: BIG reaches the screen through Gold's own widescreen
+-- contract, not through `uiSize()`
+--
+-- Game2 (src/core/Game2.lua) grants a bigger surface only to a state that
+-- answers `drawsWidescreen()` true and paints itself through
+-- `drawWidescreen(w, h)` -- see Game2:drawScene, Game2.lua:1450-1600, and
+-- PcMenu.lua:77-78/325, SummaryMenu.lua:230-231/1119 and PokedexMenu.lua:
+-- 134-135/1462 for the pattern real Gold screens follow. This checks the
+-- same contract this screen now answers on a Gen 2 save, and that CLASSIC
+-- never takes a single step toward it.
+
+local function fakeGen2Game(ownedN, seenN)
+  local g = fakeGame(ownedN, seenN)
+  g.save.generation = 2
+  return g
+end
+
+do
+  store.grid = "big"
+  local g = fakeGen2Game(OWNED, SEENX)
+  local s = factory.new(g)
+  T.check(s:drawsWidescreen(),
+    "BIG on Gen 2 opts into Gold's widescreen contract")
+  T.check(s:wantsFillScale(), "and answers wantsFillScale the same way")
+
+  -- drawWidescreen must not crash, and must actually draw the wider BIG
+  -- layout inside whatever window Game2 hands it -- not the 160-wide
+  -- Game Boy one CLASSIC would use
+  local lines = {}
+  local realDraw = Font.draw
+  Font.draw = function(text, x, y)
+    lines[#lines + 1] = { text = text, x = x, y = y, w = Font.width(text) }
+  end
+  local ok, err = pcall(s.drawWidescreen, s, 640, 576)
+  Font.draw = realDraw
+  T.check(ok, "drawWidescreen runs clean (" .. tostring(not ok and err or "") .. ")")
+  T.check(#lines > 0, "and actually draws something")
+  local wide = false
+  for _, l in ipairs(lines) do
+    if l.x + l.w > 160 then wide = true end
+  end
+  T.check(wide, "using the wider BIG layout, not the 160-wide Game Boy one")
+
+  -- Gold colours itself: porting the palette-zone half was explicitly out
+  -- of scope, and BIG no longer forcing CLASSIC here must not resurrect it
+  T.check(s:sgbPalettes() == nil,
+    "no per-species palette zones on Gen 2, even for BIG")
+end
+
+do
+  -- CLASSIC must be untouched: no widescreen opt-in, and the same answers
+  -- this screen has always given on a Gen 2 save.
+  store.grid = "classic"
+  local g = fakeGen2Game(OWNED, SEENX)
+  local s = factory.new(g)
+  T.check(not s:drawsWidescreen(),
+    "CLASSIC never opts into the widescreen contract, even on Gen 2")
+  T.check(not s:wantsFillScale(), "or asks for a fill scale")
+  T.eq(select(1, s:uiSize()), 160,
+    "uiSize follows the option, which is CLASSIC here")
+  T.eq(select(2, s:uiSize()), 144, "in both directions")
+  T.check(s:sgbPalettes() == nil, "and CLASSIC still asks for no zones")
+  store.grid = "big"
+end
+
 -- ------- nothing is drawn where it cannot be read
 
 do

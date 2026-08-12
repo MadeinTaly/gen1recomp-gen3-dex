@@ -134,14 +134,38 @@ return function(mod)
   -- back to 160x144 while this one is still visible underneath. Laying out
   -- for 320x288 on that surface draws three of five columns and runs the
   -- header off the edge, which is exactly what the first BIG dex did.
-  -- On Gold there is no BIG at all: src/core/Game2.lua never asks the top
-  -- state for a uiSize() the way src/core/Game.lua:471-475 does -- it scales
-  -- one 160x144 canvas through Chrome.fitScale -- so a 320x288 layout would
-  -- be drawn into a Game Boy frame and fall off the edge of it. The option is
-  -- not written back: a Gen 1 save that chose BIG is still BIG on Red.
+  --
+  -- Gold reaches the same answer through a different door. src/core/Game2.lua
+  -- never asks the top state for a `uiSize()` the way src/core/Game.lua:
+  -- 471-475 does -- it scales ONE canvas, which is really just the window
+  -- itself (Game2.lua:1336, `w, h = G.getDimensions()`), through
+  -- Chrome.fitScale. A state gets a bigger surface there by opting into
+  -- `drawsWidescreen()` / `drawWidescreen(w, h)` instead -- see
+  -- Game2:drawScene (Game2.lua:1450-1600) for how it composites that layer,
+  -- and PcMenu.lua:77-78/325, SummaryMenu.lua:230-231/1119 and
+  -- PokedexMenu.lua:134-135/1462 for the pattern every one of Gold's own
+  -- widescreen screens follows: fill the window, then draw the panel through
+  -- an INTEGER fit-scale inside it, never a stretch. `self:drawWidescreen`
+  -- below does exactly that, at ITS OWN 320x288 fit rather than the fixed
+  -- 160x144 Chrome.SCREEN_W/H those three assume, so this is the same
+  -- safety check as the Gen 1 one above, aimed at the window instead of the
+  -- virtual canvas Renderer hands out.
+  --
+  -- The option is not written back either way: a Gen 1 save that chose BIG
+  -- is still BIG on Red, and a Gen 2 save that chose it keeps asking for it
+  -- on a window too small to grant it -- it just gets CLASSIC instead until
+  -- the window grows, the same way Gen 1's own fallback works below.
+  local function bigFitsGen2Window()
+    local w, h = love.graphics.getDimensions()
+    return w >= LAYOUT.big.w and h >= LAYOUT.big.h
+  end
+
   local function layout(game)
-    if isGen2(game) then return LAYOUT.classic end
     local L = wanted()
+    if isGen2(game) then
+      if L == LAYOUT.big and bigFitsGen2Window() then return L end
+      return LAYOUT.classic
+    end
     local w, h = Renderer.uiWidth or Renderer.WIDTH, Renderer.uiHeight or Renderer.HEIGHT
     if w >= L.w and h >= L.h then return L end
     return LAYOUT.classic
@@ -403,13 +427,74 @@ return function(mod)
 
     -- The PREFERENCE, not the current surface. Game:draw asks this to
     -- decide how big the canvas should be, so answering with the size it
-    -- happens to be right now would mean it could never grow.
+    -- happens to be right now would mean it could never grow. Gold never
+    -- asks this at all (Game2.lua has no per-state `uiSize()`; BIG reaches
+    -- it through `drawWidescreen` below instead), but there is no reason to
+    -- special-case that generation here any more -- the honest answer is
+    -- `wanted()`, same as it always was for Gen 1.
     function self:uiSize()
-      -- Gold never asks (src/core/Game2.lua scales one 160x144 canvas), but
-      -- answering honestly costs nothing and keeps the two arms saying the
-      -- same thing about what this screen is.
-      local L = isGen2(game) and LAYOUT.classic or wanted()
+      local L = wanted()
       return L.w, L.h
+    end
+
+    -- ------- Gold's widescreen contract
+    --
+    -- `wantsFillScale` is a Gen 1 field: Game.fillScaleInStack
+    -- (src/core/Game.lua:337-345) walks the stack for it and sets
+    -- Renderer.uiFill (src/render/Renderer.lua:716-722), which switches the
+    -- UI from a fitted letterbox to a STRETCHED fill. Game2 never reads it
+    -- -- Gold's own widescreen users (PcMenu.lua:77, SummaryMenu.lua:230,
+    -- PokedexMenu.lua:134, and every other file in src/ui/gen2 that declares
+    -- it) define it unconditionally only because it costs them nothing on
+    -- the generation that DOES read it. This screen cannot do that: Gen 1
+    -- BIG already reaches its 320x288 canvas through `uiSize()` above at a
+    -- fitted integer scale, and answering `wantsFillScale() == true`
+    -- unconditionally would flip that to a stretch -- a real change to the
+    -- one generation this mod is not supposed to touch. Gating it on
+    -- `isGen2` keeps Gen 1 answering exactly what an absent method already
+    -- answered (false, by omission) while still being honest for Gen 2,
+    -- where it is read by nothing today but costs nothing to answer right.
+    function self:wantsFillScale()
+      return isGen2(game) and layout(game) == LAYOUT.big
+    end
+
+    -- Read by Game2:drawScene (src/core/Game2.lua:1450-1600) to decide
+    -- whether this screen paints its own surround (`drawWidescreen` below)
+    -- or falls through to the plain branch: a white rect, the
+    -- `render.letterbox` hook, and `self.stack:draw()` at Chrome.fitScale --
+    -- which is the ENTIRE draw path this screen used on Gen 2 before this
+    -- existed, and still uses whenever this answers false. CLASSIC always
+    -- answers false here, on both generations, so it never takes a step
+    -- this file did not already take.
+    function self:drawsWidescreen()
+      return isGen2(game) and layout(game) == LAYOUT.big
+    end
+
+    -- Only ever called for Gen 2 BIG (see `drawsWidescreen` above), and only
+    -- while this screen is the state Game2:drawScene calls it on -- which,
+    -- per "Drawn by THIS screen rather than pushed as one of its own" below,
+    -- is always the TOP of the stack while this grid is showing, so `winW,
+    -- winH` are always the real window this frame, never a stale size left
+    -- over from something else. Fits its OWN 320x288 layout to that window
+    -- at an integer scale, centers it, and reuses `self:draw()` verbatim for
+    -- the content -- the same "fill, then fit the panel inside it" shape
+    -- PcMenu.lua:325, SummaryMenu.lua:1119 and PokedexMenu.lua:1462 use, just
+    -- fit to this screen's own canvas instead of the fixed 160x144 one those
+    -- three assume. `self:draw()`'s own `love.graphics.clear(1, 1, 1, 1)`
+    -- paints the white surround outside the fitted panel, the same job the
+    -- other three do by hand with a `rectangle("fill", ...)` first -- clear()
+    -- ignores the transform below and always wipes the whole active canvas,
+    -- so it reaches past the translate/scale and covers the letterbox too.
+    function self:drawWidescreen(winW, winH)
+      local L = layout(game)
+      local scale = math.max(1, math.floor(math.min(winW / L.w, winH / L.h)))
+      local ox = math.floor((winW - L.w * scale) / 2)
+      local oy = math.floor((winH - L.h * scale) / 2)
+      love.graphics.push()
+      love.graphics.translate(ox, oy)
+      love.graphics.scale(scale, scale)
+      self:draw()
+      love.graphics.pop()
     end
 
     -- ------- the colours
@@ -424,6 +509,19 @@ return function(mod)
     -- cells stay on the base palette on purpose: a species you have met
     -- but not caught should not be advertising its colours.
     function self:sgbPalettes()
+      -- Gold colours itself: it is a CGB game, and the only zone Game2 ever
+      -- asks for on its own is the whole-screen present-palette one
+      -- (src/core/Game2.lua:1342-1356, `render.zones`), never a per-state
+      -- `sgbPalettes()` the way Gen 1's Game.lua:505 reads it -- so nothing
+      -- calls this method on a Gen 2 boot today. BIG no longer forces
+      -- CLASSIC on that generation, though, so this stops leaning on that
+      -- happenstance and says so directly: BIG on Gold is the enlarged grid
+      -- with NO per-species palette zones, full stop. Porting the zone half
+      -- would mean addressing tiles inside a canvas Gold's own compositor
+      -- never scissors that way (see `blitZones`, Game2.lua:1246-1280, which
+      -- maps every zone rect through a fixed 160x144 space regardless of
+      -- what actually drew) -- a different feature, not a missing line here.
+      if isGen2(game) then return nil end
       local L = layout(game)
       if L.cell % 8 ~= 0 or L.gridX % 8 ~= 0 or L.gridY % 8 ~= 0 then
         return nil

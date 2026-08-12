@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.5.0 — GRID BIG, on Gold
+
+0.4.0 forced `GRID BIG` to `CLASSIC` on a Gold boot with the honest reason
+that `src/core/Game2.lua` never asks the top state for a `uiSize()` the way
+Gen 1's `Game:draw` does (`src/core/Game.lua:471-475`) — it scales one
+160×144 canvas through `Chrome.fitScale`, so a 320×288 layout laid out for
+that canvas would have drawn straight off the edge of it.
+
+That was the whole truth about `uiSize()`, and not the whole truth about
+what Gold can do. Its own full-panel screens — the PC (`PcMenu.lua:77-78`),
+the summary screen (`SummaryMenu.lua:230-231`) and the Pokédex's own menu
+(`PokedexMenu.lua:134-135`) — reach a bigger surface through a different
+door: `drawsWidescreen()` and `drawWidescreen(w, h)`, read by
+`Game2:drawScene` (`Game2.lua:1450-1600`) to decide whether a state paints
+its own surround across the whole window instead of sitting fixed at
+160×144 inside a letterbox.
+
+`GRID BIG` now opts into that on a Gold save. `drawWidescreen` fits its own
+320×288 layout to the real window at a whole-number scale, centers it, and
+draws through the exact same `self:draw()` Red already uses — so the grid,
+the header, the cursor and the DATA/CRY/AREA box all land exactly where they
+do on Gen 1, just reached through Gold's own contract instead of `uiSize()`.
+It falls back to `CLASSIC` only if the window itself is too small to hold
+320×288 at an integer scale, the same safety check Gen 1 already made
+against its own canvas.
+
+**No per-species palette zones on Gold, in either layout.** Gold is a Game
+Boy Color game and colours its own pictures; the only zone `Game2` ever asks
+for on its own is a single whole-screen present-palette one
+(`Game2.lua:1342-1356`), never a per-state `sgbPalettes()` the way Gen 1's
+`Game.lua:505` reads it. `sgbPalettes()` now says so directly on a Gold save
+instead of relying on `BIG` forcing `CLASSIC` there to keep it unreachable.
+
+`CLASSIC` is untouched on both generations, and Gen 1's own `BIG` path is
+untouched too — `wantsFillScale`, the one Gen 1 field the new methods share a
+neighbourhood with, only ever answers `true` for a Gold save, because
+answering `true` unconditionally (the way Gold's own widescreen screens do,
+since Gen 1 never reads it from them) would have switched Gen 1's `BIG` from
+a fitted letterbox to a stretched fill.
+
 ## 0.4.0 — it runs on Gold
 
 `"games": ["gen1", "gen2"]`. Four things had to be true, and three of them

@@ -1,7 +1,7 @@
 {
   "id": "gen3_dex",
   "name": "Gen 3 Dex",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "api": 2,
   "games": [
     "gen1",
@@ -17,7 +17,7 @@
   "conflicts": [],
   "incompatible": [],
   "experimental": false,
-  "description": "The Pokedex as a grid of pictures instead of a list of names. Owned species wear their own palette -- twenty-one colours at once where the Game Boy could show four -- seen-but-uncaught are dimmed, and the rest are blanks. SELECT filters to OWNED, MISSING or SEEN ONLY. A offers DATA / CRY / AREA like the vanilla list -- AREA is the engine's own nest map, which blinks every place the species lives. DATA goes to the engine's own species page, so Useful Dex's extra pages still work. Runs on Gold too: fourteen rows of Johto instead of stopping at Mew, the caught half of the dex read where Gold keeps it, and DATA/AREA routed to Gold's own dex entry -- the big grid stays Gen 1, because Gold's boot has no surface to grow into.",
+  "description": "The Pokedex as a grid of pictures instead of a list of names. Owned species wear their own palette -- twenty-one colours at once where the Game Boy could show four -- seen-but-uncaught are dimmed, and the rest are blanks. SELECT filters to OWNED, MISSING or SEEN ONLY. A offers DATA / CRY / AREA like the vanilla list -- AREA is the engine's own nest map, which blinks every place the species lives. DATA goes to the engine's own species page, so Useful Dex's extra pages still work. Runs on Gold too: fourteen rows of Johto instead of stopping at Mew, the caught half of the dex read where Gold keeps it, DATA/AREA routed to Gold's own dex entry, and GRID BIG now draws its full 320x288 grid there as well, through Gold's own widescreen contract -- without the per-species palette zones, which stay a Super Game Boy trick Gold has no use for.",
   "github": "MadeinTaly/gen1recomp-gen3-dex",
   "permissions": [
     "engine_internals"
