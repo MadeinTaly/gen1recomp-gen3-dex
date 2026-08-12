@@ -424,6 +424,178 @@ do
     table.concat(over, "; ") .. ")")
 end
 
+-- ------- Wilds of Kanto's overworld sprites: the seam, not the pixels
+--
+-- No graphics context in this suite and the other mod is never actually
+-- installed, so this stubs the accessor the seam is funnelled through
+-- (self.owHandle, which wraps mod.find in a pcall) rather than loading a
+-- second mod, and checks what SEAM.md asks for: absence changes nothing,
+-- a hit is drawn CLASSIC-only, a black fallback and a throwing resolve
+-- both fall back silently, and the option gate means the seam is never
+-- even consulted when it is off.
+
+local function fakeOwHandle(resolveFn)
+  return { id = "overworld_wild_spawns", version = "1.14.0",
+           exports = { spriteProviders = { resolve = resolveFn } } }
+end
+
+do
+  store.ow_sprites = true
+  local sampleId = ordered[1]
+
+  -- absence: no handle at all
+  do
+    local s = factory.new(fakeGame(math.min(5, #ordered), 0))
+    s.owHandle = function() return nil end
+    T.check(s.owSprite({ id = sampleId }) == nil,
+      "no handle: the seam answers nothing")
+  end
+
+  -- a hit: def + frames stacked vertically, resolved with OUR species id,
+  -- the player's own Sprite Style (style = nil), and the default variant
+  do
+    local s = factory.new(fakeGame(math.min(5, #ordered), 0))
+    local seenArgs
+    s.owHandle = function()
+      return fakeOwHandle(function(_, style, speciesId, variant, game)
+        seenArgs = { style = style, speciesId = speciesId, variant = variant,
+                     game = game }
+        return { def = { image = "assets/ow_fake.png", frames = 6 },
+                 providerId = "followers_ex" }
+      end)
+    end
+    local sprite = s.owSprite({ id = sampleId })
+    T.check(sprite ~= nil, "a real def resolves to a drawable sprite")
+    T.check(type(sprite.getWidth) == "function"
+      and type(sprite.getHeight) == "function",
+      "shaped so picScale can size it like any other picture")
+    T.eq(seenArgs.style, nil, "style nil takes the player's own Sprite Style")
+    T.eq(seenArgs.speciesId, sampleId, "asking for OUR species id")
+    T.eq(seenArgs.variant, nil, "and the default variant")
+  end
+
+  -- black fallback: treated as a miss, not a hit
+  do
+    local s = factory.new(fakeGame(math.min(5, #ordered), 0))
+    s.owHandle = function()
+      return fakeOwHandle(function()
+        return { def = { image = "assets/ow_fake.png", frames = 1 },
+                 providerId = "black", error = "all providers failed" }
+      end)
+    end
+    T.check(s.owSprite({ id = sampleId }) == nil,
+      "a black-silhouette result falls back rather than drawing it")
+  end
+
+  -- a throwing resolve is caught, not propagated
+  do
+    local s = factory.new(fakeGame(math.min(5, #ordered), 0))
+    s.owHandle = function()
+      return fakeOwHandle(function() error("boom") end)
+    end
+    local ok, sprite = pcall(s.owSprite, { id = sampleId })
+    T.check(ok, "a throwing resolve does not take the caller down with it")
+    T.check(ok and sprite == nil, "and is treated as a miss")
+  end
+
+  -- a handle with no spriteProviders (an older release, say) is a miss too
+  do
+    local s = factory.new(fakeGame(math.min(5, #ordered), 0))
+    s.owHandle = function() return { id = "overworld_wild_spawns", exports = {} } end
+    T.check(s.owSprite({ id = sampleId }) == nil,
+      "no spriteProviders export: a miss, not a crash")
+  end
+
+  store.ow_sprites = false
+end
+
+-- the option gate: off means the seam is never even consulted
+do
+  local Renderer = require("src.render.Renderer")
+  store.ow_sprites = false
+  store.grid = "classic"
+  local s = factory.new(fakeGame(math.min(5, #ordered), 0))
+  local calls = 0
+  s.owHandle = function() calls = calls + 1
+    return fakeOwHandle(function()
+      return { def = { image = "x", frames = 1 }, providerId = "followers_ex" }
+    end)
+  end
+  local w0, h0 = Renderer.uiWidth, Renderer.uiHeight
+  Renderer.uiWidth, Renderer.uiHeight = select(1, s:uiSize()), select(2, s:uiSize())
+  s:draw()
+  Renderer.uiWidth, Renderer.uiHeight = w0, h0
+  T.eq(calls, 0, "OW SPRITES off: the seam is never consulted, even in CLASSIC")
+  store.grid = "big"
+end
+
+-- CLASSIC only: BIG keeps the battle pictures even with a working handle
+do
+  local Renderer = require("src.render.Renderer")
+  store.ow_sprites = true
+  store.grid = "big"
+  local s = factory.new(fakeGame(math.min(5, #ordered), 0))
+  local calls = 0
+  s.owHandle = function() calls = calls + 1
+    return fakeOwHandle(function()
+      return { def = { image = "x", frames = 1 }, providerId = "followers_ex" }
+    end)
+  end
+  local w0, h0 = Renderer.uiWidth, Renderer.uiHeight
+  Renderer.uiWidth, Renderer.uiHeight = select(1, s:uiSize()), select(2, s:uiSize())
+  s:draw()
+  Renderer.uiWidth, Renderer.uiHeight = w0, h0
+  T.eq(calls, 0, "BIG never consults the seam, option on or not")
+  store.ow_sprites = false
+end
+
+-- CLASSIC, option on, a working handle: the seam IS consulted, and only
+-- for species that are not a blank -- a never-met species must not have
+-- the other mod asked to draw it, or its sprite would reveal a Pokemon
+-- the player has not encountered
+do
+  local Renderer = require("src.render.Renderer")
+  store.ow_sprites = true
+  store.grid = "classic"
+  -- Sized off the dataset rather than off 5 and 3: CI runs the engine's
+  -- fixture set, which is three species, and a fixed 5/3 split made seenN
+  -- NEGATIVE there -- so the "must not be asked" loop started inside the
+  -- range the test had just marked owned and failed on its own arithmetic.
+  -- At least one of each state, and always one never-met left over, which
+  -- is the state this whole block exists to protect.
+  local ownedN = math.min(5, math.max(0, #ordered - 2))
+  local seenN = math.min(3, math.max(0, #ordered - ownedN - 1))
+  local g = fakeGame(ownedN, seenN)
+  local s = factory.new(g)
+  local asked = {}
+  s.owHandle = function()
+    return fakeOwHandle(function(_, _, speciesId)
+      asked[speciesId] = true
+      return { def = { image = "x", frames = 1 }, providerId = "followers_ex" }
+    end)
+  end
+  local w0, h0 = Renderer.uiWidth, Renderer.uiHeight
+  Renderer.uiWidth, Renderer.uiHeight = select(1, s:uiSize()), select(2, s:uiSize())
+  s:draw()
+  Renderer.uiWidth, Renderer.uiHeight = w0, h0
+
+  local askedAny = false
+  for _ in pairs(asked) do askedAny = true break end
+  T.check(askedAny, "CLASSIC + on + a hit: the seam is actually used")
+
+  for i = 1, ownedN + seenN do
+    T.check(asked[ordered[i]], ("owned/seen species %s was asked for")
+      :format(ordered[i]))
+  end
+  for i = ownedN + seenN + 1, math.min(#ordered, ownedN + seenN + 10) do
+    T.check(not asked[ordered[i]],
+      ("never-met species %s must stay a blank, not be asked for")
+        :format(ordered[i]))
+  end
+  store.ow_sprites = false
+  store.grid = "big"
+end
+
 -- ------- the ways in
 
 do

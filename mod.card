@@ -7,6 +7,7 @@ return {
   compat = { modApi = 2 },
   differences = {
     added = {
+      "OW SPRITES (experimental pre-release, off by default): with Wilds of Kanto (overworld_wild_spawns) installed and enabled, the CLASSIC grid draws its per-species 16x16 overworld sprite instead of the halved battle picture, reached through mod.find rather than a manifest dependency so it changes nothing for anyone without that mod",
       "A offers DATA / CRY / AREA like the vanilla list; AREA is the engine's own LoadTownMap_Nest -- TownMap with nestSpecies -- which blinks an icon on every map whose wild slots hold the species",
       "the dex list becomes a 5x4 grid of battle pics instead of 151 rows of text",
       "every OWNED species wears its own palette, through one tile-aligned palette zone per cell -- twenty-one at once, where the Game Boy hardware could show four",
@@ -18,6 +19,9 @@ return {
       "REPLACE DEX (on) points the START menu's POKeDEX row at this grid; off leaves the engine's list alone and adds a separate DEX GRID row instead",
     },
     known = {
+      "OW SPRITES never asks the other mod about a never-met species: its sprite would reveal a Pokemon the player has not encountered, so a blank stays a blank",
+      "OW SPRITES applies in CLASSIC only -- BIG's 56-pixel cell already draws a battle picture at scale 1, and a 16-pixel sprite would have to be blown up four times to fill it",
+      "the black silhouette Wilds of Kanto falls back to when it has nothing better counts as a miss, not a hit, because a silhouette in a dex grid hides which Pokemon it is and the halved picture does not",
       "A opens the engine's own DexEntryMenu rather than a copy, so ShaneMcGovernIE's Useful Dex keeps working: its stats/moves pages are one press further in",
       "CLASSIC is greyscale by necessity, not by choice -- a 28-pixel cell is three and a half tiles and a palette zone is addressed in tiles",
       "the pictures are the ROM's own art and cannot be redrawn, so the larger surface buys room and colour, never more detail",

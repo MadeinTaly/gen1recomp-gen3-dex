@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.0-beta.1 — overworld sprites, if you have them (pre-release)
+
+A **pre-release**, and the toggle is **off**. Nothing here changes anything
+for anyone who does not go and switch it on and also have another mod
+installed.
+
+`CLASSIC` has always halved a 56×56 battle picture into its 28-pixel cell,
+because Gen 1 has nothing better to offer: its four generic party icons are
+unreadable in a grid. [Wilds of Kanto](https://github.com/YoDrehDenSwagAuf/overworld-spawn-mod)
+(`overworld_wild_spawns`) builds a per-species 16×16 overworld sprite, and 16
+fits that cell whole. Turn `OW SPRITES` on, and with that mod installed and
+enabled the `CLASSIC` grid draws its sprites instead of the halved pictures.
+
+- `BIG` is untouched. At 56 a picture already draws at scale 1, and a
+  16-pixel sprite would have to be blown up four times to fill the cell.
+- **A never-met species stays a blank**, and the other mod is not even asked
+  about one — its sprite would reveal a Pokémon you have not encountered.
+  Seen-but-not-caught keeps its dimming.
+- Reached through the engine's own `mod.find`, never a manifest dependency,
+  so the absence of that mod is one branch rather than a hard requirement.
+  Every call into it is wrapped: it is someone else's code on someone else's
+  release cycle, and a throw in a draw loop takes the frame down.
+- The black silhouette that mod falls back to when it has nothing better is
+  treated as a **miss**, not a hit. A silhouette in a dex grid hides which
+  Pokémon it is; the halved picture does not.
+
+It is a pre-release because a cross-mod integration is the one kind of change
+a headless suite cannot prove, and the launcher offers the newest stable
+release — so nobody is updated into this by accident.
+
 ## 0.2.2 — the choice had no cursor
 
 **Fixed: nothing marked the selected row of DATA / CRY / AREA.** The three
