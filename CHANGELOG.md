@@ -1,6 +1,40 @@
 # Changelog
 
-## 0.5.0 — GRID BIG, on Gold
+## 0.5.1-beta.1 — the grid can say why it fell back
+
+Reported: the CLASSIC grid draws battle pictures where it used to draw
+Wilds of Kanto's overworld icons.
+
+**What this release is not.** It is not a fix, because I have not found the
+cause yet, and I would rather say so than ship a guess. What I did establish:
+nothing in the seam has changed here since 0.3.0 — the diff across 0.4.0 and
+0.5.0 does not touch it — and Wilds of Kanto 2.2.0 still answers both of the
+ways this screen asks. Loaded next to it, its party-icon resolver returns a
+sprite with a path and its provider chain agrees. So the ask is not what
+broke, and the answer arrives; something between that answer and a drawn
+icon is dropping it on a real install, and from here I cannot see which.
+
+**What this release is.** Every step of that ask was `pcall`ed and every miss
+returned nil — right for a draw loop, useless for a report: the grid looked
+identical whether that mod was absent, switched off, on a version without the
+seam, or naming art this machine cannot open. It now says which, once per
+reason per visit, in the log:
+
+- Wilds of Kanto is not there — absent, switched off, or failed to load
+- its party-icon resolver threw
+- its resolver had no art for a species
+- it answered with its own missing-sprite placeholder
+- its provider chain has no art, or answered without a picture
+- the art it named could not be loaded — **with the path**, because that path
+  names the art pack that is missing
+
+**One real change of behaviour.** Wilds of Kanto's own missing-sprite
+placeholder is now treated as a miss rather than as a picture, which is the
+rule this screen already applied to the black silhouette: a placeholder in a
+dex grid is worse than the halved battle picture, which at least tells you
+which Pokémon the cell is.
+
+A pre-release, because it is an instrument rather than a repair.
 
 0.4.0 forced `GRID BIG` to `CLASSIC` on a Gold boot with the honest reason
 that `src/core/Game2.lua` never asks the top state for a `uiSize()` the way

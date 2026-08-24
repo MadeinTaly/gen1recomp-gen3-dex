@@ -320,13 +320,40 @@ return function(mod)
     -- provider chain, and calling it twenty times a frame is not free.
     local owCache = {}
 
+    -- ------- why a cell fell back, said once
+    --
+    -- Reported (#1): the CLASSIC grid draws battle pictures where it used to
+    -- draw overworld icons. Every step of the ask below is pcall'ed and
+    -- every miss returns nil, which is right for a draw loop and useless for
+    -- a bug report: the screen looked exactly the same whether that mod was
+    -- absent, switched off, on a version without the seam, or answering with
+    -- a path this machine cannot load. It had no way to say which.
+    --
+    -- So each distinct reason is logged ONCE per session -- not per species,
+    -- not per frame; twenty cells redrawing sixty times a second must not
+    -- become a log file. The next report carries the answer with it.
+    local owSaid = {}
+    local function owMiss(reason, detail)
+      if owSaid[reason] then return nil end
+      owSaid[reason] = true
+      mod.log:info("OW SPRITES: %s%s", reason,
+        detail and (" (" .. tostring(detail) .. ")") or "")
+      return nil
+    end
+
     local function owSprite(def)
       local cached = owCache[def.id]
       if cached ~= nil then return cached or nil end
       owCache[def.id] = false
 
       local handle = self.owHandle()
-      if not handle or not handle.exports then return nil end
+      if not handle then
+        return owMiss("Wilds of Kanto is not there -- absent, switched off, "
+          .. "or it failed to load")
+      end
+      if not handle.exports then
+        return owMiss("Wilds of Kanto is loaded but exports nothing")
+      end
       local ex = handle.exports
 
       -- ------- two ways to ask, in the order they are known to work
@@ -350,7 +377,22 @@ return function(mod)
         local okDef, sd = pcall(function()
           return service:resolvePartyIconDef({ species = def.id }, game)
         end)
-        if not okDef or type(sd) ~= "table" or not sd.image then return nil end
+        if not okDef then
+          return owMiss("its party-icon resolver threw", sd)
+        end
+        if type(sd) ~= "table" or not sd.image then
+          return owMiss("its party-icon resolver had no art for a species")
+        end
+        -- Its own "I could not find this one" placeholder, which it marks
+        -- rather than hides. A missing-sprite box in a dex grid is worse
+        -- than the halved battle picture, which at least tells you which
+        -- Pokemon the cell is -- the same call the black silhouette gets
+        -- below.
+        if sd.fallback == true then
+          return owMiss("it answered with its own missing-sprite placeholder "
+            .. "-- check the SPRITE STYLE setting and that the art pack that "
+            .. "style needs is installed")
+        end
         return sd, service
       end
 
@@ -369,14 +411,22 @@ return function(mod)
         local ok, result = pcall(function()
           return providers:resolve(nil, def.id, nil, game)
         end)
-        if not ok or type(result) ~= "table" then return nil end
+        if not ok or type(result) ~= "table" then
+          return owMiss("its provider chain threw or answered with nothing",
+            ok and type(result) or result)
+        end
         -- resolve() always returns a table and falls back to a black
         -- silhouette when everything else fails. A silhouette in a dex grid
         -- is worse than the halved battle picture, which at least shows you
         -- which Pokemon it is -- treat it as a miss, not a hit.
-        if result.error or result.providerId == OW_BLACK then return nil end
+        if result.error or result.providerId == OW_BLACK then
+          return owMiss("its provider chain has no art for a species",
+            result.error or result.providerId)
+        end
         local sd = result.def
-        if not sd or not sd.image then return nil end
+        if not sd or not sd.image then
+          return owMiss("its provider chain answered without a picture")
+        end
         return sd
       end
 
@@ -397,7 +447,12 @@ return function(mod)
         local okImg, loaded = pcall(Assets.image, sdef.image)
         if okImg then img = loaded end
       end
-      if not img then return nil end
+      if not img then
+        -- The one that cannot be guessed from the outside: the seam answered
+        -- with a path, and nothing on this machine could open it. The path
+        -- is in the line because it names the art pack that is missing.
+        return owMiss("the art it named could not be loaded", sdef.image)
+      end
 
       local n = sdef.frames
       if type(n) ~= "number" or n < 1 then n = 1 end
