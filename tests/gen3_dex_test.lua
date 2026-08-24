@@ -874,6 +874,41 @@ end
 
 run.release()
 
+-- ------- the game's own menu icon in a CLASSIC cell (issue #1)
+--
+-- The reporter had no follower mod at all and expected the mini icons the
+-- party list draws. Those come out of the engine's `icons` registry, which
+-- is also where every icon mod writes (menyas/unique-menu-icons overrides
+-- exactly this table) -- so what is asserted here is the REGISTRY being
+-- honoured, not any one mod's art.
+--
+-- The second assertion is the one that would have shipped a bug: on Gen 1
+-- the draw goes through PartyMenu.drawIcon, which returns nothing and stops
+-- when a species has no icon. A pcall around it answers "true" for a cell it
+-- never painted, and the grid would have left that cell EMPTY instead of
+-- falling back to the battle picture.
+do
+  local species = ordered[1]
+  local screen = factory.new(fakeGame(1, 0))
+  T.eq(type(screen.drawMenuIcon), "function",
+    "the screen exposes its icon draw, the way it exposes owSprite")
+
+  Data.icons = Data.icons or {}
+  Data.icons.bySpecies = Data.icons.bySpecies or {}
+  local realEntry = Data.icons.bySpecies[species]
+
+  Data.icons.bySpecies[species] = { image = "mods/gen3_dex/assets/probe.png" }
+  T.check(screen.drawMenuIcon(Data.pokemon[species], 0, 0, 28, false),
+    "a species the icons registry answers for is drawn as its menu icon")
+
+  Data.icons.bySpecies[species] = nil
+  T.check(not screen.drawMenuIcon(Data.pokemon[species], 0, 0, 28, false),
+    "and a species with no icon anywhere is a MISS, so the battle picture "
+    .. "still gets the cell rather than the cell going blank")
+
+  Data.icons.bySpecies[species] = realEntry
+end
+
 -- ------- runs on Gen 2, and reads Gold's own dex table
 --
 -- Two separate claims. The gate: a mod is loaded on a Gold boot only if the

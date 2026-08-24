@@ -91,6 +91,11 @@ return function(mod)
     -- CLASSIC grid drawn from its 16x16 overworld sprites instead of the
     -- halved battle pic can switch it on.
     { key = "ow_sprites", label = "OW SPRITES", type = "toggle", default = true },
+    -- See "the game's own menu icon" below. On by default because it is what
+    -- a CLASSIC grid looks like it should be showing: the reporter of #1 had
+    -- no follower mod at all and reasonably expected the mini icons the party
+    -- list draws, not a battle picture cut in half.
+    { key = "menu_icons", label = "MENU ICONS", type = "toggle", default = true },
   })
 
   local Renderer = require("src.render.Renderer")
@@ -480,6 +485,139 @@ return function(mod)
     end
     self.owSprite = owSprite
 
+    -- ------- the game's own menu icon
+    --
+    -- #1 was reported as "the CLASSIC grid stopped showing overworld icons",
+    -- and the answer turned out to be that the reporter had no follower mod
+    -- installed at all: he expected the MINI ICONS the party list draws, and
+    -- reasonably so -- a 16x16 icon fits a 28-pixel cell whole, which is the
+    -- entire argument the overworld sprites were added for. He was also
+    -- running an icon mod of his own (menyas/unique-menu-icons).
+    --
+    -- That mod is the reason this needs no seam of its own. It does not
+    -- patch a menu: it writes into the ENGINE's `icons` registry
+    -- (mod.content.icons:override / :register), which is where the party
+    -- list already reads from. So drawing the game's own icon here picks up
+    -- its art, and every other icon mod's, for free -- and a player with no
+    -- icon mod gets the vanilla mini icon, which is what the cell was
+    -- missing in the first place.
+    --
+    -- Gen 1 goes through PartyMenu.drawIcon rather than a lookup of this
+    -- screen's own, because that function is more than a path: it resolves
+    -- icons.bySpecies, then the species record's `icon`, then the dex-indexed
+    -- default, raises the `pokemon.icon` hook through Sprites.iconPath, and
+    -- bakes OBP0 for the built-in 2bpp art (which drawn raw would not look
+    -- like the game's icon at all). Reimplementing that here would be
+    -- reimplementing four rules and getting one of them wrong.
+    --
+    -- Gold has no such free function -- its icons are an instance method on
+    -- a live party screen -- so that boot walks the same DATA path by hand:
+    -- gen2Icons.species names a sheet, gen2Icons.icons carries it, and the
+    -- top 16x16 frame is the still one. The `pokemon.icon` hook is raised
+    -- there too, through the same Sprites.iconPath, so one icon mod repaints
+    -- both games exactly as it does in the party list.
+    local iconImages = {}
+
+    local function gen2Icon(def)
+      local icons = game.data and game.data.gen2Icons
+      local sheetId = icons and icons.species and icons.species[def.id]
+      local sheet = sheetId and icons.icons and icons.icons[sheetId]
+      local path = sheet and sheet.image
+      local okPath, hooked = pcall(function()
+        return require("src.pokemon.Sprites").iconPath(
+          game.data, { species = def.id }, path, { name = sheetId })
+      end)
+      if okPath and hooked then path = hooked end
+      if type(path) ~= "string" or path == "" then return nil end
+
+      local cached = iconImages[path]
+      if cached == nil then
+        local ok, img = pcall(Assets.image, path)
+        cached = (ok and img) or false
+        iconImages[path] = cached
+      end
+      if not cached then return nil end
+
+      local okDim, iw, ih = pcall(function()
+        return cached:getWidth(), cached:getHeight()
+      end)
+      if not okDim or not iw or not ih or iw <= 0 or ih <= 0 then return nil end
+      -- a 16x32 strip is two frames; the top one is the mon standing still
+      local fh = ih >= iw * 2 and ih / 2 or ih
+      local okQuad, quad = pcall(love.graphics.newQuad, 0, 0, iw, fh, iw, ih)
+      if not okQuad or not quad then return nil end
+      return { image = cached, quad = quad,
+               getWidth = function() return iw end,
+               getHeight = function() return fh end }
+    end
+
+    -- The three rules PartyMenu.drawIcon follows, in its order
+    -- (src/ui/PartyMenu.lua:215-227), asked only for "is there one at all":
+    -- the per-species override the icon mods write into, then the species
+    -- record's own, then the dex-indexed default. The hook gets the last
+    -- word through Sprites.iconPath, including the right to suppress it.
+    local function gen1IconPath(def)
+      local icons = game.data and game.data.icons
+      if not icons then return nil end
+      local entry = (icons.bySpecies and icons.bySpecies[def.id]) or def.icon
+      local name, path
+      if type(entry) == "string" then
+        name = entry
+        path = icons.icons and icons.icons[entry]
+      elseif type(entry) == "table" then
+        path = entry.image
+      end
+      if not path then
+        name = def.dex and icons.byDex and icons.byDex[def.dex]
+        path = name and icons.icons and icons.icons[name]
+      end
+      local ok, hooked = pcall(function()
+        return require("src.pokemon.Sprites").iconPath(
+          game.data, { species = def.id }, path, { name = name })
+      end)
+      if not ok then return path end
+      return hooked
+    end
+
+    -- true when it drew, false when this dataset has no icon for the species
+    -- and the battle picture should take the cell instead
+    local function drawMenuIcon(def, x, y, cell, dim)
+      if isGen2(game) then
+        local sprite = gen2Icon(def)
+        if not sprite then return false end
+        local k = picScale(sprite, cell)
+        local w, h = sprite:getWidth() * k, sprite:getHeight() * k
+        if dim then love.graphics.setColor(1, 1, 1, 0.45) end
+        local ok = pcall(love.graphics.draw, sprite.image, sprite.quad,
+          x + (cell - w) / 2, y + (cell - h) / 2, 0, k, k)
+        love.graphics.setColor(1, 1, 1, 1)
+        return ok
+      end
+
+      local okMenu, PartyMenu = pcall(require, "src.ui.PartyMenu")
+      if not okMenu or type(PartyMenu) ~= "table"
+         or type(PartyMenu.drawIcon) ~= "function" then
+        return false
+      end
+
+      -- PartyMenu.drawIcon returns nothing and simply STOPS when the species
+      -- has no icon, so a pcall around it answers "true" for a cell it never
+      -- painted -- which would leave that cell empty rather than falling back
+      -- to the battle picture. So the path is resolved here first, by the
+      -- same three rules in the same order, and a species with no icon is
+      -- reported as a miss before anything is drawn.
+      if not gen1IconPath(def) then return false end
+      -- selected = false is what keeps this from touching mon.hp / mon.stats:
+      -- the bobbing frame is chosen from the HP bar, and a dex entry is a
+      -- species with no HP to read. counter = 0 for the same reason.
+      if dim then love.graphics.setColor(1, 1, 1, 0.45) end
+      local drew = pcall(PartyMenu.drawIcon, game, { species = def.id },
+        x + (cell - 16) / 2, y + (cell - 16) / 2, false, 0)
+      love.graphics.setColor(1, 1, 1, 1)
+      return drew
+    end
+    self.drawMenuIcon = drawMenuIcon
+
     -- The PREFERENCE, not the current surface. Game:draw asks this to
     -- decide how big the canvas should be, so answering with the size it
     -- happens to be right now would mean it could never grow. Gold never
@@ -776,7 +914,13 @@ return function(mod)
               if not drawnOw then love.graphics.setColor(1, 1, 1, 1) end
             end
           end
-          if not drawnOw then
+          -- the game's own mini icon, when no follower sprite took the cell
+          local drawnIcon = false
+          if not drawnOw and e.state ~= "unknown" and L == LAYOUT.classic
+             and opt("menu_icons", true) then
+            drawnIcon = drawMenuIcon(e.def, x, y, L.cell, e.state == "seen")
+          end
+          if not drawnOw and not drawnIcon then
             local img = e.state ~= "unknown" and picOf(e.def) or nil
             if img then
               local k = picScale(img, L.cell)

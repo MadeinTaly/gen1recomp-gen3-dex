@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.6.0-beta.1 — MENU ICONS: the mini icon the party list draws
+
+The reporter of #1 came back with the answer 0.5.1-beta.1 was built to find,
+and it was not a failure at all: he had no follower mod installed. He expected
+the CLASSIC grid to show **the game's own mini icons** — and he was right to.
+A 16x16 menu icon fits a 28-pixel cell whole, which is the entire argument the
+overworld sprites were added for; it just never occurred to this screen to ask
+for the one the game already has.
+
+**MENU ICONS**, on by default, draws it. The order in a CLASSIC cell is now:
+Wilds of Kanto's overworld sprite if that mod is there and OW SPRITES is on,
+then the game's own menu icon, then the halved battle picture as before. BIG
+is untouched — a 16-pixel icon has no business being blown up to fill a
+56-pixel cell, which is the same trade OW SPRITES already declines there.
+
+**Every icon mod comes with it, and none of them needed a seam.** He is
+running [unique-menu-icons](https://github.com/menyas/unique-menu-icons),
+which does not patch a menu: it writes into the engine's own `icons` registry,
+the table the party list already reads. So this screen asking the game for its
+icon picks up that mod's art, and any other one's, for nothing. On Gen 1 the
+draw goes through `PartyMenu.drawIcon` rather than a lookup of this screen's
+own, because that function is four rules and not one — the per-species
+override, the species record's own icon, the dex-indexed default, and the
+`pokemon.icon` hook — plus the OBP0 bake the built-in 2bpp art needs to look
+like the game's icon at all. Gold has no such free function (its icons are a
+method on a live party screen), so that boot walks the same data by hand and
+raises the same hook.
+
+One thing worth writing down, because it nearly shipped: `PartyMenu.drawIcon`
+returns nothing and simply stops when a species has no icon, so a `pcall`
+around it reports success for a cell it never painted. Left alone, that would
+have blanked those cells instead of falling back to the battle picture. The
+path is resolved first now, and a species with no icon is a miss before
+anything is drawn — with a test that fails if that regresses.
+
 ## 0.5.1-beta.1 — the grid can say why it fell back
 
 Reported: the CLASSIC grid draws battle pictures where it used to draw
