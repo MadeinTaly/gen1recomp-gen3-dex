@@ -551,11 +551,29 @@ return function(mod)
                getHeight = function() return fh end }
     end
 
-    -- The three rules PartyMenu.drawIcon follows, in its order
-    -- (src/ui/PartyMenu.lua:215-227), asked only for "is there one at all":
-    -- the per-species override the icon mods write into, then the species
-    -- record's own, then the dex-indexed default. The hook gets the last
-    -- word through Sprites.iconPath, including the right to suppress it.
+    -- PER-SPECIES only, and that restriction is the whole design.
+    --
+    -- PartyMenu.drawIcon reads three sources in order (src/ui/PartyMenu.lua:
+    -- 215-227): the per-species override, the species record's own `icon`,
+    -- and then `icons.byDex` -- the vanilla default, which on Gen 1 is NINE
+    -- SHARED SHAPES for a hundred and fifty-one species. BALL, BIRD, BUG,
+    -- GRASS and the rest: every bird is the same bird. That is fine in a
+    -- party list of six, where the name is written next to it, and it is
+    -- useless in a dex grid, whose entire job is telling twenty cells apart.
+    -- A grid of nine repeating shapes would be strictly worse than the
+    -- halved battle picture, which at least shows you which Pokemon it is.
+    --
+    -- So the dex-indexed default is deliberately NOT accepted here: only an
+    -- icon somebody chose for THIS species -- which is what an icon mod
+    -- writes (menyas/unique-menu-icons overrides icons.bySpecies per
+    -- species), and what a dataset carrying real per-species art has. With
+    -- no such mod installed this answers nil for every species and the grid
+    -- draws exactly what it drew in 0.5.0.
+    --
+    -- The hook gets the last word through Sprites.iconPath, including the
+    -- right to suppress an icon entirely -- but it is only ever raised for a
+    -- species that already has a per-species path, so an unhooked vanilla
+    -- boot cannot be talked into the shared shapes by accident.
     local function gen1IconPath(def)
       local icons = game.data and game.data.icons
       if not icons then return nil end
@@ -567,10 +585,7 @@ return function(mod)
       elseif type(entry) == "table" then
         path = entry.image
       end
-      if not path then
-        name = def.dex and icons.byDex and icons.byDex[def.dex]
-        path = name and icons.icons and icons.icons[name]
-      end
+      if not path then return nil end
       local ok, hooked = pcall(function()
         return require("src.pokemon.Sprites").iconPath(
           game.data, { species = def.id }, path, { name = name })

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.0-beta.1 — MENU ICONS: the mini icon the party list draws
+## 0.6.0-beta.2 — MENU ICONS: the mini icon the party list draws
 
 The reporter of #1 came back with the answer 0.5.1-beta.1 was built to find,
 and it was not a failure at all: he had no follower mod installed. He expected
@@ -14,6 +14,18 @@ Wilds of Kanto's overworld sprite if that mod is there and OW SPRITES is on,
 then the game's own menu icon, then the halved battle picture as before. BIG
 is untouched — a 16-pixel icon has no business being blown up to fill a
 56-pixel cell, which is the same trade OW SPRITES already declines there.
+
+**A boot with no icon mod draws exactly what it drew in 0.5.0**, and that is
+a rule rather than a side effect. Gen 1's own menu icons are NINE SHARED
+SHAPES handed out by dex number — BALL, BIRD, BUG, GRASS and the rest; every
+bird is the same bird. That is fine in a party list of six with the name
+written beside it, and useless in a grid whose whole job is telling twenty
+cells apart: 151 species would collapse into nine repeating pictures, which
+is strictly worse than the halved battle picture. So the dex-indexed default
+is refused here. Only an icon chosen for a SPECIFIC species counts — which is
+what an icon mod writes, and what a vanilla Gen 1 dataset does not have.
+(Gold is the exception and needs no rule: its icons are per-species already,
+so that boot shows Gold's own.)
 
 **Every icon mod comes with it, and none of them needed a seam.** He is
 running [unique-menu-icons](https://github.com/menyas/unique-menu-icons),

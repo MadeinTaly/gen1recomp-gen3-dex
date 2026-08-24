@@ -906,6 +906,24 @@ do
     "and a species with no icon anywhere is a MISS, so the battle picture "
     .. "still gets the cell rather than the cell going blank")
 
+  -- THE RULE THAT KEEPS A VANILLA BOOT UNCHANGED: Gen 1's own icons are
+  -- nine shared shapes handed out by dex number (icons.byDex), so accepting
+  -- them here would turn 151 cells into nine repeating pictures -- strictly
+  -- worse than the halved battle picture, which at least identifies the
+  -- Pokemon. Only an icon chosen for THIS species counts, which is what an
+  -- icon mod writes and what a vanilla dataset does not have.
+  local realByDex = Data.icons.byDex
+  local realIcons = Data.icons.icons
+  local dex = Data.pokemon[species].dex
+  Data.icons.icons = Data.icons.icons or {}
+  Data.icons.icons.BALL = Data.icons.icons.BALL or "mods/gen3_dex/assets/probe.png"
+  Data.icons.byDex = { [dex] = "BALL" }
+  T.check(not screen.drawMenuIcon(Data.pokemon[species], 0, 0, 28, false),
+    "the vanilla dex-indexed shape is NOT accepted -- a boot with no icon "
+    .. "mod draws exactly what it drew before")
+  Data.icons.byDex = realByDex
+  Data.icons.icons = realIcons
+
   Data.icons.bySpecies[species] = realEntry
 end
 
