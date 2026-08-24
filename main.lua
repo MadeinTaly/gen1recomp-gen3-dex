@@ -91,11 +91,24 @@ return function(mod)
     -- CLASSIC grid drawn from its 16x16 overworld sprites instead of the
     -- halved battle pic can switch it on.
     { key = "ow_sprites", label = "OW SPRITES", type = "toggle", default = true },
-    -- See "the game's own menu icon" below. On by default because it is what
-    -- a CLASSIC grid looks like it should be showing: the reporter of #1 had
-    -- no follower mod at all and reasonably expected the mini icons the party
-    -- list draws, not a battle picture cut in half.
-    { key = "menu_icons", label = "MENU ICONS", type = "toggle", default = true },
+    -- See "the game's own menu icon" below. Three settings rather than a
+    -- switch, because the two reasonable answers disagree and neither of
+    -- them is mine to pick for everyone:
+    --
+    --   UNIQUE  only an icon chosen for a SPECIFIC species -- an icon mod's
+    --           art, or a dataset that carries real per-species icons. A
+    --           vanilla Gen 1 boot has none, so the grid stays what it was.
+    --   ALWAYS  the game's own icon even when that is one of Gen 1's nine
+    --           shared shapes. Every bird the same bird, and some players
+    --           want the icon look anyway -- the reporter of #1 did, having
+    --           seen both.
+    --   OFF     the halved battle picture, the way 0.5.0 drew it.
+    { key = "menu_icons", label = "MENU ICONS", type = "choice", default = "unique",
+      choices = {
+        { "UNIQUE", "unique" },
+        { "ALWAYS", "always" },
+        { "OFF", "off" },
+      } },
   })
 
   local Renderer = require("src.render.Renderer")
@@ -574,7 +587,7 @@ return function(mod)
     -- right to suppress an icon entirely -- but it is only ever raised for a
     -- species that already has a per-species path, so an unhooked vanilla
     -- boot cannot be talked into the shared shapes by accident.
-    local function gen1IconPath(def)
+    local function gen1IconPath(def, mode)
       local icons = game.data and game.data.icons
       if not icons then return nil end
       local entry = (icons.bySpecies and icons.bySpecies[def.id]) or def.icon
@@ -584,6 +597,11 @@ return function(mod)
         path = icons.icons and icons.icons[entry]
       elseif type(entry) == "table" then
         path = entry.image
+      end
+      -- ALWAYS is the one setting that accepts the dex-indexed shared shape
+      if not path and mode == "always" then
+        name = def.dex and icons.byDex and icons.byDex[def.dex]
+        path = name and icons.icons and icons.icons[name]
       end
       if not path then return nil end
       local ok, hooked = pcall(function()
@@ -596,7 +614,20 @@ return function(mod)
 
     -- true when it drew, false when this dataset has no icon for the species
     -- and the battle picture should take the cell instead
-    local function drawMenuIcon(def, x, y, cell, dim)
+    -- UNIQUE / ALWAYS / OFF, tolerant of the boolean 0.6.0-beta.1 and
+    -- beta.2 stored under this key when it was a toggle: `false` was OFF and
+    -- `true` was "draw one", which is what UNIQUE means now.
+    local function iconMode()
+      local value = opt("menu_icons", "unique")
+      if value == false or value == "off" then return "off" end
+      if value == "always" then return "always" end
+      return "unique"
+    end
+    self.iconMode = iconMode
+
+    local function drawMenuIcon(def, x, y, cell, dim, mode)
+      mode = mode or iconMode()
+      if mode == "off" then return false end
       if isGen2(game) then
         local sprite = gen2Icon(def)
         if not sprite then return false end
@@ -621,7 +652,7 @@ return function(mod)
       -- to the battle picture. So the path is resolved here first, by the
       -- same three rules in the same order, and a species with no icon is
       -- reported as a miss before anything is drawn.
-      if not gen1IconPath(def) then return false end
+      if not gen1IconPath(def, mode) then return false end
       -- selected = false is what keeps this from touching mon.hp / mon.stats:
       -- the bobbing frame is chosen from the HP bar, and a dex entry is a
       -- species with no HP to read. counter = 0 for the same reason.
@@ -931,8 +962,7 @@ return function(mod)
           end
           -- the game's own mini icon, when no follower sprite took the cell
           local drawnIcon = false
-          if not drawnOw and e.state ~= "unknown" and L == LAYOUT.classic
-             and opt("menu_icons", true) then
+          if not drawnOw and e.state ~= "unknown" and L == LAYOUT.classic then
             drawnIcon = drawMenuIcon(e.def, x, y, L.cell, e.state == "seen")
           end
           if not drawnOw and not drawnIcon then

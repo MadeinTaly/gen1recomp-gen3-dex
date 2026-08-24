@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.0-beta.3 — MENU ICONS: UNIQUE, ALWAYS or OFF
+
+beta.2 refused Gen 1's nine shared shapes so that a boot with no icon mod
+would draw what it always drew. The reporter of #1, having now seen both,
+said the quiet part: with his icon mod beta.2 is right, and in vanilla he
+would rather have the icons anyway, shared shapes and all. Both positions are
+reasonable and neither is mine to impose, so MENU ICONS is a choice now:
+
+- **UNIQUE** (default) — only an icon chosen for a specific species. An icon
+  mod's art, or a dataset carrying real per-species icons. A vanilla Gen 1
+  boot has none, so the grid is exactly what 0.5.0 drew.
+- **ALWAYS** — the game's own icon even when that is one of the nine shapes.
+  Every bird the same bird, and some players want the icon look regardless.
+- **OFF** — the halved battle picture, always.
+
+A value stored while this was a toggle still reads: `false` is OFF, `true` is
+UNIQUE.
+
 ## 0.6.0-beta.2 — MENU ICONS: the mini icon the party list draws
 
 The reporter of #1 came back with the answer 0.5.1-beta.1 was built to find,

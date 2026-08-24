@@ -912,15 +912,30 @@ do
   -- worse than the halved battle picture, which at least identifies the
   -- Pokemon. Only an icon chosen for THIS species counts, which is what an
   -- icon mod writes and what a vanilla dataset does not have.
-  local realByDex = Data.icons.byDex
+  -- ALWAYS is the setting that accepts it, for a player who prefers the
+  -- icon look to a battle picture even when Gen 1 hands out nine shapes --
+  -- which is what the reporter of #1 asked for after seeing both.
+  local realByDex0 = Data.icons.byDex
+  local realIcons0 = Data.icons.icons
+  Data.icons.icons = Data.icons.icons or {}
+  Data.icons.icons.BALL = Data.icons.icons.BALL or "mods/gen3_dex/assets/probe.png"
+  Data.icons.byDex = { [Data.pokemon[species].dex] = "BALL" }
+  T.check(screen.drawMenuIcon(Data.pokemon[species], 0, 0, 28, false, "always"),
+    "MENU ICONS = ALWAYS does accept the shared shape, for players who want it")
+  T.check(not screen.drawMenuIcon(Data.pokemon[species], 0, 0, 28, false, "off"),
+    "and OFF draws no icon at all, whatever the dataset carries")
+  Data.icons.byDex = realByDex0
+  Data.icons.icons = realIcons0
+
+  local realByDex
   local realIcons = Data.icons.icons
   local dex = Data.pokemon[species].dex
   Data.icons.icons = Data.icons.icons or {}
   Data.icons.icons.BALL = Data.icons.icons.BALL or "mods/gen3_dex/assets/probe.png"
   Data.icons.byDex = { [dex] = "BALL" }
-  T.check(not screen.drawMenuIcon(Data.pokemon[species], 0, 0, 28, false),
-    "the vanilla dex-indexed shape is NOT accepted -- a boot with no icon "
-    .. "mod draws exactly what it drew before")
+  T.check(not screen.drawMenuIcon(Data.pokemon[species], 0, 0, 28, false, "unique"),
+    "the vanilla dex-indexed shape is NOT accepted by UNIQUE -- a boot with "
+    .. "no icon mod draws exactly what it drew before")
   Data.icons.byDex = realByDex
   Data.icons.icons = realIcons
 
