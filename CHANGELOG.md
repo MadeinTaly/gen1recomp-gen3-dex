@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.6.0-beta.3 — MENU ICONS: UNIQUE, ALWAYS or OFF
+## 0.6.0 — MENU ICONS: UNIQUE, ALWAYS or OFF
+
+Confirmed on a real screen by the reporter of #1, in all three
+configurations he could put it in: with Wilds of Kanto's overworld sprites,
+with menyas/unique-menu-icons, and on a vanilla boot with neither. Three
+pre-releases in one evening, each one answering something he had actually
+looked at -- the last of which was the discovery that his original report was
+not a bug at all.
 
 beta.2 refused Gen 1's nine shared shapes so that a boot with no icon mod
 would draw what it always drew. The reporter of #1, having now seen both,
