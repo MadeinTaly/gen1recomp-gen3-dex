@@ -131,7 +131,12 @@ run.loader.modOptions.gen3_dex = store
 run.loader.modOptions.gen3_box = run.loader.modOptions.gen3_box or {}
 store.grid = os.getenv("GRID") or "classic"
 store.backdrop = "scene"
-store.hand = os.getenv("HAND") or "1"
+
+-- which scene lives in the SAVE now, not in an option
+run.loader.modSave = run.loader.modSave or {}
+run.loader.modSave.gen3_dex = run.loader.modSave.gen3_dex or {}
+local dexSave = run.loader.modSave.gen3_dex
+dexSave.hand = tonumber(os.getenv("HAND") or "1")
 
 local game = {
   data = Data,
@@ -148,7 +153,7 @@ for name in (os.getenv("SCENES") or "SKY,NIGHT,VOLCANO,SAKURA"):gmatch("[^,]+") 
 end
 
 for _, name in ipairs(scenes) do
-  store.scene = name
+  dexSave.scene = name
   screen.view = (os.getenv("PANEL") == "1") and { row = 2 } or nil
   -- PICK=1 draws the chooser: no panel, the screen itself wearing the scene
   if os.getenv("PICK") == "1" then

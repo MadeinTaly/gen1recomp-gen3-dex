@@ -17,6 +17,20 @@ from a chooser that looked like a label.
 The VIEW panel also has a **cursor** now, the same glyph the species menu
 draws, so the two menus on this screen look like the same kind of thing.
 
+**A box mod that cannot paint now says so.** Versions before gen3_box 1.15.0
+export the wallpaper LIST but not the painter, so the chooser filled with
+scene names and hands while the backdrop quietly stayed `SOFT` — a pale wash
+with a grey horizon, the same on every scene, with no preview. That looks
+exactly like a broken preview and is a missing dependency, and the screen
+was silent about it. The THEME row and the chooser footer both say
+`NEEDS BOX 1.15+` now.
+
+**`SCENE` and `HAND` are gone from the options.** Two lists of bare names in
+a settings menu is a worse way to pick a picture than the chooser on the
+screen, and a stale value in there was one more thing to disagree with the
+save. The choice lives in the save; a save that has never chosen gets the
+first scene the box mod offers.
+
 **And the scene is no longer washed away.** 0.8.0 put the whole screen under
 a veil so black type would read on it; a photograph of the chooser open on
 AURORA settled what that looks like — a white screen with a grey smudge

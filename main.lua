@@ -109,28 +109,14 @@ return function(mod)
         { "PEACH", "peach" },
         { "WHITE", "white" },
       } },
-    -- SCENE draws one of gen3_box's wallpapers, and these two say which.
-    -- They are ONE choice for the whole Pokedex rather than one per page:
-    -- the box has a scene per box because a box is a shelf you assign a
-    -- meaning to, and the Pokedex is a single list.
+    -- WHICH scene is not an option row. It was, for one release, and two
+    -- lists of bare names in a settings menu is a worse way to pick a
+    -- picture than the chooser on the screen itself -- where the Pokedex
+    -- wears what the cursor is on. SELECT, then A on THEME.
     --
-    -- Two rows rather than a chooser screen: a scene and a hand is exactly
-    -- the shape of the pair the box menu offers, and rebuilding that whole
-    -- interface here to set one value would be a screen to maintain twice.
-    { key = "scene", label = "SCENE", type = "choice", default = "SKY",
-      choices = {
-        { "SEA", "SEA" }, { "FOREST", "FOREST" }, { "SKY", "SKY" },
-        { "CAVE", "CAVE" }, { "CITY", "CITY" }, { "SNOW", "SNOW" },
-        { "NIGHT", "NIGHT" }, { "DESERT", "DESERT" }, { "VOLCANO", "VOLCANO" },
-        { "SPACE", "SPACE" }, { "CASTLE", "CASTLE" }, { "SAKURA", "SAKURA" },
-        { "STORM", "STORM" }, { "CIRCUIT", "CIRCUIT" }, { "TRAIN", "TRAIN" },
-        { "90S", "90S" },
-      } },
-    { key = "hand", label = "HAND", type = "choice", default = "1",
-      choices = {
-        { "1", "1" }, { "2", "2" }, { "3", "3" }, { "4", "4" },
-        { "5", "5" }, { "6", "6" }, { "7", "7" },
-      } },
+    -- The choice lives in the save. Nothing carries the old option rows
+    -- forward: a save that has never chosen gets the first scene the box
+    -- mod offers, which is what a fresh install should look like anyway.
     -- See "the game's own menu icon" below. Three settings rather than a
     -- switch, because the two reasonable answers disagree and neither of
     -- them is mine to pick for everyone:
@@ -1096,9 +1082,8 @@ return function(mod)
       end
       local saved = mod.save:get("scene")
       local hand = mod.save:get("hand")
-      local id = (type(saved) == "string" and saved ~= "" and saved) or opt("scene", "SKY")
-      local n = tonumber(hand) or tonumber(opt("hand", "1")) or 1
-      return id, math.max(1, n)
+      local id = type(saved) == "string" and saved ~= "" and saved or nil
+      return id, math.max(1, tonumber(hand) or 1)
     end
 
     -- The scenes the box mod offers, in its own order, minus the two that
@@ -1121,8 +1106,31 @@ return function(mod)
       return list or {}
     end
 
+    -- ------- why the scene did not draw, said out loud
+    --
+    -- This is the second time on this screen that a silent fallback cost an
+    -- afternoon. A box mod older than 1.15.0 exports its wallpaper LIST --
+    -- it has for many releases -- but not the painter, so the chooser fills
+    -- with scene names and hands while the backdrop quietly stays SOFT: a
+    -- pale wash with a grey horizon, on every scene, with no preview. It
+    -- looks exactly like a broken preview, and it is a missing dependency.
+    --
+    -- So the reason is a string the screen can show, not a nil.
+    function self.sceneTrouble()
+      local handle = self.boxHandle()
+      if not handle then return "NEEDS GEN3 BOX" end
+      local exports = handle.exports
+      if not (exports and exports.wallpapers and exports.wallpapers[1]) then
+        return "NEEDS GEN3 BOX"
+      end
+      if not exports.paintWallpaper then
+        return "NEEDS BOX 1.15+"
+      end
+      return nil
+    end
+
     -- Returns the wallpaper record and the style to draw it with, or nil if
-    -- the box mod is not there to ask.
+    -- the box mod cannot supply one.
     local function scenePaper()
       local handle = self.boxHandle()
       local exports = handle and handle.exports
@@ -1133,6 +1141,13 @@ return function(mod)
       local paper
       for _, w in ipairs(exports.wallpapers) do
         if w.id == id then paper = w end
+      end
+      -- nothing chosen yet, or a scene that mod no longer has: the first
+      -- real one rather than nothing
+      if not paper then
+        for _, w in ipairs(exports.wallpapers) do
+          if not paper and w.id ~= "PLAIN" and w.id ~= "FAVE" then paper = w end
+        end
       end
       if not paper then return nil end
       local list = (exports.wallpaperArt or {})[id] or {}
@@ -1200,9 +1215,13 @@ return function(mod)
           label = "THEME",
           value = function()
             if backdropName() ~= "scene" then return "OFF" end
+            -- a box mod that cannot paint says so HERE, where the choice is
+            -- made, rather than leaving a chooser that changes nothing
+            local trouble = self.sceneTrouble()
+            if trouble then return trouble end
             local hands = handsFor(id)
             local h = hands[math.max(1, math.min(#hands, hand))]
-            return id .. ((h and h.by) and (" " .. h.by) or "")
+            return (id or "-") .. ((h and h.by) and (" " .. h.by) or "")
           end,
           open = function()
             local scenes, at = sceneList(), 1
@@ -1406,23 +1425,31 @@ return function(mod)
       -- showing while you choose one, so a panel that covered the screen
       -- would be a panel that hid the thing being chosen.
       if self.view then
-        -- One line per row and no taller than it has to be. The scene lives
-        -- BEHIND this panel: a box that filled the screen would hide the
-        -- thing the panel exists to change.
+        -- Full width, one row per line, and the value CLIPPED to whatever
+        -- the label leaves. The first version was sixteen tiles wide with
+        -- the value right-aligned inside it, and a hand called GEN3 EMBER
+        -- simply ran back over the word THEME -- two strings sharing eight
+        -- pixels of height, which is unreadable in a way a screenshot shows
+        -- immediately and a test never will.
         local rows = self.viewRows()
-        local tw = 16
+        local tx, tw = 0, math.floor(L.w / 8)
         local th = #rows + 2
-        local tx, ty = 1, math.floor((L.h - 22) / 8) - th
+        local ty = math.floor((L.h - 26) / 8) - th
+        local left, right = tx * 8 + 6, (tx + tw) * 8 - 6
         Font.drawBox(tx, ty, tw, th)
         love.graphics.setColor(0, 0, 0, 1)
         for i, row in ipairs(rows) do
-          local y = (ty + i) * 8
+          local y = (ty + i) * 8 + 2
           -- the same cursor glyph the species menu uses, so the two menus
           -- on this screen are visibly the same kind of thing
-          if i == self.view.row then Font.drawCode(Theme.cursor, tx * 8 + 4, y) end
-          Font.draw(row.label, tx * 8 + 14, y)
+          if i == self.view.row then Font.drawCode(Theme.cursor, left, y) end
+          Font.draw(row.label, left + 10, y)
           local value = tostring(row.value() or "")
-          Font.draw(value, (tx + tw) * 8 - 6 - Font.width(value), y)
+          local budget = right - (left + 10 + Font.width(row.label) + 8)
+          while #value > 1 and Font.width(value) > budget do
+            value = value:sub(1, #value - 1)
+          end
+          Font.draw(value, right - Font.width(value), y)
         end
         love.graphics.setColor(0, 0, 0, 1)
       end
@@ -1440,7 +1467,14 @@ return function(mod)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.rectangle("fill", 0, L.h - 24, L.w, 24)
         love.graphics.setColor(0, 0, 0, 1)
-        if self.pick.moved then
+        local trouble = self.sceneTrouble()
+        if trouble then
+          -- the chooser works, the painting does not, and the difference is
+          -- a version. Saying nothing here is what made this look like a
+          -- broken preview for an entire release.
+          Font.draw(fit(Strings("%s", trouble)), TEXT_X, L.h - 22)
+          Font.draw(fit(Strings("SCENES NEED THE BOX MOD")), TEXT_X, L.h - 12)
+        elseif self.pick.moved then
           Font.draw(fit(Strings("%s", id)), TEXT_X, L.h - 22)
           local by = Strings("<%s>", (h and h.by) or "-")
           Font.draw(by, L.w - TEXT_X - Font.width(by), L.h - 22)

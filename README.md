@@ -50,9 +50,7 @@ file.
 | `START MENU` | on / off | whether either row is added at all |
 | `A OPENS` | `MENU` / `DATA` | the three-way menu, or straight to the species page |
 | `OW SPRITES` | on / off | draw Wilds of Kanto's overworld sprites in the `CLASSIC` grid (on by default; does nothing without that mod — see below) |
-| `BACKDROP` | `SCENE` / `SOFT` / `PAPER` / `MINT` / `PEACH` / `WHITE` | what is behind the list. `SCENE` (the default) borrows a wallpaper from the box mod; the rest are drawn here, and all of them are pale because every caption on this screen is black type |
-| `SCENE` | SEA, FOREST, SKY, CAVE, CITY, SNOW, NIGHT, DESERT, VOLCANO, SPACE, CASTLE, SAKURA, STORM, CIRCUIT, TRAIN, 90S | which wallpaper, when `BACKDROP` is `SCENE` — one choice for the whole Pokédex. **In game: press SELECT, then A on THEME** — that opens the same chooser the box has: up/down for the scene, left/right for the hand, the screen itself as the preview, A to keep and B to go back |
-| `HAND` | 1 – 7 | which hand drew it: the artists and the drawn variants that scene has, in menu order. Past the end of a scene's list it falls back to the last one that exists |
+| `BACKDROP` | `SCENE` / `SOFT` / `PAPER` / `MINT` / `PEACH` / `WHITE` | what is behind the list. `SCENE` (the default) borrows a wallpaper from **gen3_box 1.15.0 or newer** — which scene is chosen in game with SELECT → A on THEME, not here. The rest are drawn in this mod |
 
 ## Where does it live
 

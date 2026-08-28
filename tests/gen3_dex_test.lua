@@ -973,6 +973,12 @@ do
   gen2Run.release()
 end
 
+local function saveOf()
+  run.loader.modSave = run.loader.modSave or {}
+  run.loader.modSave.gen3_dex = run.loader.modSave.gen3_dex or {}
+  return run.loader.modSave.gen3_dex
+end
+
 -- ------- the box's wallpapers, borrowed
 --
 -- gen1recomp-gen3-boxes draws ninety-one scenes and ships the art for them.
@@ -1015,7 +1021,8 @@ do
 
   -- the scene and the hand the options name, at the Pokedex's own size
   do
-    store.scene, store.hand = "SKY", "2"
+    -- la scelta vive nel save, non piu' in due righe di opzioni
+    saveOf().scene, saveOf().hand = "SKY", 2
     local painted = {}
     local s = factory.new(fakeGame(3, 0))
     s.boxHandle = function() return fakeBox(painted) end
@@ -1031,7 +1038,7 @@ do
   -- a HAND past the end of a scene's list is a player who set 7 and then
   -- chose a scene with one hand: clamp, do not draw nothing
   do
-    store.scene, store.hand = "NIGHT", "7"
+    saveOf().scene, saveOf().hand = "NIGHT", 7
     local painted = {}
     local s = factory.new(fakeGame(3, 0))
     s.boxHandle = function() return fakeBox(painted) end
@@ -1042,7 +1049,7 @@ do
 
   -- an older box mod, without the seam: fall back rather than raise
   do
-    store.scene, store.hand = "SKY", "1"
+    saveOf().scene, saveOf().hand = "SKY", 1
     local s = factory.new(fakeGame(3, 0))
     s.boxHandle = function() return { exports = { wallpapers = {} } } end
     local ok = pcall(function() s:draw() end)
@@ -1051,7 +1058,7 @@ do
 
   -- a painter that raises must not take the Pokedex with it
   do
-    store.scene, store.hand = "SKY", "1"
+    saveOf().scene, saveOf().hand = "SKY", 1
     local s = factory.new(fakeGame(3, 0))
     s.boxHandle = function()
       return { exports = {
@@ -1068,7 +1075,7 @@ do
   -- ------- THEME opens the box's chooser, and the screen is the preview
   do
     store.backdrop = "scene"
-    store.scene, store.hand = "SKY", "1"
+    saveOf().scene, saveOf().hand = "SKY", 1
     local painted = {}
     local s = factory.new(fakeGame(3, 0))
     s.boxHandle = function() return fakeBox(painted) end
@@ -1114,6 +1121,63 @@ do
     painted = {}
     s:draw()
     T.eq(painted[1] and painted[1].id, chosen, "e tiene quella scelta")
+  end
+
+  -- ------- le due colonne del pannello non si toccano
+  --
+  -- Etichetta a sinistra, valore a destra, e il valore troncato a quello che
+  -- resta: con una mano chiamata GEN3 EMBER la prima versione scriveva il
+  -- valore SOPRA la parola THEME. Otto pixel di altezza condivisi da due
+  -- stringhe sono illeggibili, e un test che guarda solo che non crashi non
+  -- se ne accorge mai.
+  do
+    local painted = {}
+    local s = factory.new(fakeGame(3, 0))
+    s.boxHandle = function() return fakeBox(painted) end
+    saveOf().scene, saveOf().hand = "SKY", 2
+    local Font = require("src.render.Font")
+    local L = { w = 160 }
+    local left, right = 6, L.w - 6
+    local worst = 0
+    for _, row in ipairs(s.viewRows()) do
+      local value = tostring(row.value() or "")
+      local budget = right - (left + 10 + Font.width(row.label) + 8)
+      while #value > 1 and Font.width(value) > budget do
+        value = value:sub(1, #value - 1)
+      end
+      local labelEnd = left + 10 + Font.width(row.label)
+      local valueStart = right - Font.width(value)
+      worst = math.max(worst, labelEnd - valueStart)
+    end
+    T.check(worst <= 0,
+      "etichetta e valore non si sovrappongono mai, nemmeno col nome piu' lungo")
+  end
+
+  -- ------- una mod delle box troppo vecchia lo dice, invece di tacere
+  --
+  -- Le versioni prima della 1.15.0 esportano la LISTA degli sfondi ma non il
+  -- pittore: il selettore si riempiva di nomi e lo sfondo restava quello di
+  -- ripiego, cioe' sembrava un'anteprima rotta ed era una dipendenza che
+  -- manca. Il motivo e' una stringa che lo schermo puo' mostrare.
+  do
+    local s = factory.new(fakeGame(3, 0))
+    s.boxHandle = function() return nil end
+    T.eq(s.sceneTrouble(), "NEEDS GEN3 BOX",
+      "senza la mod delle box lo dice")
+
+    s.boxHandle = function()
+      return { version = "1.14.2", exports = {
+        wallpapers = { { id = "SKY", pattern = "SKY", palette = {
+          { 240, 250, 255 }, { 186, 224, 248 }, { 120, 178, 226 }, { 50, 96, 150 } } } },
+        wallpaperArt = { SKY = { { by = "GEN3 BOX" } } },
+      } }
+    end
+    T.eq(s.sceneTrouble(), "NEEDS BOX 1.15+",
+      "e con una troppo vecchia dice quale versione serve")
+
+    local painted = {}
+    s.boxHandle = function() return fakeBox(painted) end
+    T.eq(s.sceneTrouble(), nil, "mentre con una buona non si lamenta")
   end
 
   store.backdrop = "soft"
