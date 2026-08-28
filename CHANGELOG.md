@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0 — something behind the list
+
+The screen was a white sheet, which is what a Game Boy list is and also what
+a spreadsheet is. `BACKDROP` puts something behind it: **SOFT** (a pale wash
+with a low horizon and dots over it), **PAPER** (ruled, the sort of grid you
+would have written the list on), **MINT**, **PEACH**, and **WHITE** for the
+sheet exactly as it was through 0.6.0.
+
+All of them are pale on purpose, and that is not timidity. Every caption,
+number and entry name on this screen is drawn in black: a dark backdrop
+would mean recolouring the type, and type that changes colour with a
+background setting is how a screen ends up unreadable in the one combination
+nobody tested. The wash is banded rather than smooth, because a Game Boy
+screen has never had a smooth gradient and banding at this size reads as
+deliberate.
+
 ## 0.6.0 — MENU ICONS: UNIQUE, ALWAYS or OFF
 
 Confirmed on a real screen by the reporter of #1, in all three

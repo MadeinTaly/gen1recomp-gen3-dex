@@ -50,6 +50,7 @@ file.
 | `START MENU` | on / off | whether either row is added at all |
 | `A OPENS` | `MENU` / `DATA` | the three-way menu, or straight to the species page |
 | `OW SPRITES` | on / off | draw Wilds of Kanto's overworld sprites in the `CLASSIC` grid (on by default; does nothing without that mod — see below) |
+| `BACKDROP` | `SOFT` / `PAPER` / `MINT` / `PEACH` / `WHITE` | what is behind the list. `WHITE` is the sheet 0.6.0 drew; the rest are drawn here in a few lines each, and all of them are pale because every caption on this screen is black type |
 
 ## Where does it live
 

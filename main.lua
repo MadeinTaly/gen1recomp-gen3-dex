@@ -91,6 +91,23 @@ return function(mod)
     -- CLASSIC grid drawn from its 16x16 overworld sprites instead of the
     -- halved battle pic can switch it on.
     { key = "ow_sprites", label = "OW SPRITES", type = "toggle", default = true },
+    -- What is behind the list. WHITE is what shipped through 0.6.0 and is
+    -- kept for anyone who wants it back; the rest are drawn here in a few
+    -- lines each and cost one screen-sized rectangle plus a scatter.
+    --
+    -- All of them are PALE, and that is not timidity: every caption, every
+    -- number and every entry name on this screen is drawn in black. A dark
+    -- backdrop would mean recolouring the type, and type that changes
+    -- colour with a background setting is how a screen ends up unreadable
+    -- in one combination nobody tested.
+    { key = "backdrop", label = "BACKDROP", type = "choice", default = "soft",
+      choices = {
+        { "SOFT", "soft" },
+        { "PAPER", "paper" },
+        { "MINT", "mint" },
+        { "PEACH", "peach" },
+        { "WHITE", "white" },
+      } },
     -- See "the game's own menu icon" below. Three settings rather than a
     -- switch, because the two reasonable answers disagree and neither of
     -- them is mine to pick for everyone:
@@ -929,9 +946,87 @@ return function(mod)
       love.graphics.rectangle("fill", x1, y1 - arm + t, t, arm)
     end
 
+    -- ------- what is behind the list
+    --
+    -- The screen used to be a white sheet, which is what a Game Boy list is
+    -- and also what a spreadsheet is. These are the smallest thing that
+    -- stops it reading as one: a wash, a horizon and something scattered
+    -- over it, in tones close enough to white that black type on top loses
+    -- nothing.
+    local BACKDROPS = {
+      soft  = { { 236, 242, 250 }, { 214, 228, 246 }, { 190, 212, 238 } },
+      paper = { { 246, 244, 236 }, { 232, 228, 214 }, { 208, 202, 182 } },
+      mint  = { { 234, 248, 240 }, { 208, 238, 224 }, { 176, 220, 202 } },
+      peach = { { 252, 240, 232 }, { 248, 222, 208 }, { 238, 196, 178 } },
+    }
+
+    local function backdropName()
+      local ok, value = pcall(function() return mod.options:get("backdrop") end)
+      if not ok or type(value) ~= "string" then return "soft" end
+      return value
+    end
+
+    local function drawBackdrop(L)
+      local name = backdropName()
+      local tones = BACKDROPS[name]
+      if not tones then return end
+      local function set(i, a)
+        local c = tones[i]
+        love.graphics.setColor(c[1] / 255, c[2] / 255, c[3] / 255, a or 1)
+      end
+
+      -- the wash: bands rather than a true gradient, because a Game Boy
+      -- screen has never had a smooth one and banding at this scale reads
+      -- as deliberate
+      local bands = 6
+      for i = 0, bands - 1 do
+        set(1, 1 - i * 0.06)
+        love.graphics.rectangle("fill", 0, math.floor(L.h * i / bands),
+          L.w, math.ceil(L.h / bands) + 1)
+      end
+
+      if name == "paper" then
+        -- ruled paper: a grid you could have written the list on
+        set(2, 0.75)
+        for y = 8, L.h, 12 do
+          love.graphics.rectangle("fill", 0, y, L.w, 1)
+        end
+        set(3, 0.35)
+        for x = 12, L.w, 12 do
+          love.graphics.rectangle("fill", x, 0, 1, L.h)
+        end
+      else
+        -- a low horizon with two soft hills, and dots above it: enough for
+        -- the eye to place the list ON something
+        local horizon = math.floor(L.h * 0.72)
+        set(2, 0.7)
+        for x = 0, L.w, 2 do
+          local y = horizon
+            - math.floor(6 * math.sin(x / 37))
+            - math.floor(3 * math.sin(x / 13))
+          love.graphics.rectangle("fill", x, y, 2, L.h - y)
+        end
+        set(3, 0.5)
+        for x = 0, L.w, 2 do
+          local y = horizon + 8
+            - math.floor(5 * math.sin((x + 60) / 29))
+          love.graphics.rectangle("fill", x, y, 2, L.h - y)
+        end
+        for i = 0, 23 do
+          local hx = (i * 2654435761) % 4294967296
+          local x = math.floor(hx / 65536) % L.w
+          local y = math.floor(hx / 7) % math.max(1, horizon - 12)
+          set(2, 0.5)
+          love.graphics.rectangle("fill", x, y + 6, 2 + (i % 2), 2)
+        end
+      end
+      love.graphics.setColor(1, 1, 1, 1)
+    end
+
     function self:draw()
       local L = layout(game)
       love.graphics.clear(1, 1, 1, 1)
+      drawBackdrop(L)
       love.graphics.setColor(0, 0, 0, 1)
 
       Font.draw(fit(Strings("POKeDEX %d/%d %s",
