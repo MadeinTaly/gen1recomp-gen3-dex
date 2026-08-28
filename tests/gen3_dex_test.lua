@@ -84,16 +84,25 @@ do
 end
 
 -- ------- the filters actually filter
+--
+-- SELECT opens the VIEW panel now rather than cycling the filter blind: the
+-- first row of that panel is SHOW, and RIGHT steps it. Four states with no
+-- label, found by watching the list change, is what this replaced.
 
 do
   local g = fakeGame(OWNED, SEENX)
   local s = factory.new(g)
+  press("select"); s:update()
+  T.check(s.view ~= nil, "SELECT apre il pannello invece di ciclare al buio")
   local names, counts = {}, {}
   for i = 1, #run.loader.exports.gen3_dex.filters do
     names[i] = run.loader.exports.gen3_dex.filters[i].label
     counts[i] = #s.entries
-    press("select"); s:update()
+    press("right"); s:update()
   end
+  T.eq(s.viewRows()[1].label, "SHOW", "e la prima riga del pannello e' il filtro")
+  press("select"); s:update()
+  T.check(s.view == nil, "e SELECT lo richiude")
   T.eq(counts[1], #ordered, "ALL shows everything")
   T.eq(counts[2], OWNED, "OWNED shows only what you own")
   T.eq(counts[3], #ordered - OWNED, "MISSING shows everything you do not own")

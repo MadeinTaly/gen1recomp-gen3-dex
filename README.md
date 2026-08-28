@@ -51,7 +51,7 @@ file.
 | `A OPENS` | `MENU` / `DATA` | the three-way menu, or straight to the species page |
 | `OW SPRITES` | on / off | draw Wilds of Kanto's overworld sprites in the `CLASSIC` grid (on by default; does nothing without that mod — see below) |
 | `BACKDROP` | `SCENE` / `SOFT` / `PAPER` / `MINT` / `PEACH` / `WHITE` | what is behind the list. `SCENE` (the default) borrows a wallpaper from the box mod; the rest are drawn here, and all of them are pale because every caption on this screen is black type |
-| `SCENE` | SEA, FOREST, SKY, CAVE, CITY, SNOW, NIGHT, DESERT, VOLCANO, SPACE, CASTLE, SAKURA, STORM, CIRCUIT, TRAIN, 90S | which wallpaper, when `BACKDROP` is `SCENE` — one choice for the whole Pokédex |
+| `SCENE` | SEA, FOREST, SKY, CAVE, CITY, SNOW, NIGHT, DESERT, VOLCANO, SPACE, CASTLE, SAKURA, STORM, CIRCUIT, TRAIN, 90S | which wallpaper, when `BACKDROP` is `SCENE` — one choice for the whole Pokédex. **In game: press SELECT**, which opens a panel where SCENE and HAND change with left/right and the wallpaper behind changes as you move |
 | `HAND` | 1 – 7 | which hand drew it: the artists and the drawn variants that scene has, in menu order. Past the end of a scene's list it falls back to the last one that exists |
 
 ## Where does it live

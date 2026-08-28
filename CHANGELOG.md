@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.9.0 — SELECT opens a panel instead of cycling in the dark
+
+You could only change the backdrop from `START -> MODS -> OPTIONS`, which is
+a background nobody changes. **SELECT** now opens a small VIEW panel with
+three rows -- **SHOW** (the filter), **SCENE** and **HAND** -- and left/right
+step each one. The wallpaper behind changes **as you move**, which is the
+only way to choose one: the panel is a short box low on the screen precisely
+so the thing being chosen stays visible around it.
+
+SELECT used to cycle the filter silently: four states, no label, and you
+found out which one you were on by watching the list change. It is a row
+with a name on it now, one keypress deeper and considerably easier to use.
+
+What the panel sets goes in the **save**; the `SCENE` and `HAND` option rows
+still work and are what a fresh save starts from.
+
+**`tools/render_screen.lua` and `tools/rgb_to_png.py` ship with the mod.**
+The Pokedex draws black text over a borrowed wallpaper, and whether that is
+legible is a question about pixels: these draw the screen without a ROM or a
+window and turn the frames into a contact sheet. The box mod has carried the
+same pair for three releases, and this is the release where not having them
+would have meant guessing.
+
 ## 0.8.0 — the box's wallpapers, behind the list
 
 `BACKDROP` gains **SCENE**, which is now the default: the Pokedex draws one

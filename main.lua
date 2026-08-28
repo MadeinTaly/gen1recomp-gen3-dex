@@ -884,10 +884,35 @@ return function(mod)
         return
       end
 
+      -- ------- the VIEW panel
+      --
+      -- Three things belong to the screen rather than to a species: which
+      -- entries are listed, which scene is behind them, and whose hand drew
+      -- it. SELECT used to cycle the filter silently -- four states, no
+      -- label, and you found out by watching the list change. It opens this
+      -- instead, where each row says what it is and the wallpaper behind
+      -- changes AS YOU MOVE, which is the only way to choose one.
+      if self.view then
+        -- self.viewRows rather than the local: the rows are built further
+        -- down the constructor, and update() runs long after all of it
+        local rows = self.viewRows()
+        local row = rows[self.view.row]
+        if input:wasPressed("b") or input:wasPressed("select") then
+          self.view = nil
+        elseif input:wasPressed("up") then
+          self.view.row = (self.view.row - 2) % #rows + 1
+        elseif input:wasPressed("down") then
+          self.view.row = self.view.row % #rows + 1
+        elseif input:wasPressed("left") then
+          row.step(-1)
+        elseif input:wasPressed("right") or input:wasPressed("a") then
+          row.step(1)
+        end
+        return
+      end
+
       if input:wasPressed("select") then
-        self.filter = self.filter % #FILTERS + 1
-        self.index = 0
-        rebuild()
+        self.view = { row = 1 }
         return
       end
 
@@ -1009,13 +1034,44 @@ return function(mod)
     -- drift by it. One step per drawn frame is what the box does.
     self.sceneTick = 0
 
+    -- Where the choice lives: the SAVE first, the option second.
+    --
+    -- The options rows still work and still travel with the install, but a
+    -- background you can only change through START -> MODS -> OPTIONS is a
+    -- background nobody changes. What the in-screen panel writes goes in the
+    -- save, and the option is what a fresh save starts from.
+    local function opt(key, fallback)
+      local ok, value = pcall(function() return mod.options:get(key) end)
+      if not ok or value == nil or value == "" then return fallback end
+      return value
+    end
+
     local function sceneChoice()
-      local function opt(key, fallback)
-        local ok, value = pcall(function() return mod.options:get(key) end)
-        if not ok or value == nil or value == "" then return fallback end
-        return value
+      local saved = mod.save:get("scene")
+      local hand = mod.save:get("hand")
+      local id = (type(saved) == "string" and saved ~= "" and saved) or opt("scene", "SKY")
+      local n = tonumber(hand) or tonumber(opt("hand", "1")) or 1
+      return id, math.max(1, n)
+    end
+
+    -- The scenes the box mod offers, in its own order, minus the two that
+    -- are not places: PLAIN is the absence of a wallpaper and FAVOURITE is a
+    -- pointer to one of the others, and neither means anything here.
+    local function sceneList()
+      local handle = self.boxHandle()
+      local exports = handle and handle.exports
+      local out = {}
+      for _, w in ipairs((exports and exports.wallpapers) or {}) do
+        if w.id ~= "PLAIN" and w.id ~= "FAVE" then out[#out + 1] = w.id end
       end
-      return opt("scene", "SKY"), math.max(1, tonumber(opt("hand", "1")) or 1)
+      return out
+    end
+
+    local function handsFor(id)
+      local handle = self.boxHandle()
+      local exports = handle and handle.exports
+      local list = ((exports and exports.wallpaperArt) or {})[id]
+      return list or {}
     end
 
     -- Returns the wallpaper record and the style to draw it with, or nil if
@@ -1072,6 +1128,55 @@ return function(mod)
       local veil = (180 - darkest) / (255 - darkest)
       return math.max(0.15, math.min(0.82, veil))
     end
+
+    -- The rows, rebuilt each frame because the hands a scene has depend on
+    -- which scene is chosen -- and because the box mod can be enabled or
+    -- disabled between two opens of this screen.
+    local function viewRows()
+      local rows = {}
+      rows[#rows + 1] = {
+        label = "SHOW",
+        value = function() return FILTERS[self.filter].label end,
+        step = function(d)
+          self.filter = (self.filter - 1 + d) % #FILTERS + 1
+          self.index = 0
+          rebuild()
+        end,
+      }
+      local scenes = sceneList()
+      if #scenes > 0 then
+        local id, hand = sceneChoice()
+        local at = 1
+        for i, s in ipairs(scenes) do if s == id then at = i end end
+        rows[#rows + 1] = {
+          label = "SCENE",
+          value = function() return (backdropName() == "scene") and id or "OFF" end,
+          step = function(d)
+            if backdropName() ~= "scene" then return end
+            local nextId = scenes[(at - 1 + d) % #scenes + 1]
+            mod.save:set("scene", nextId)
+            -- a hand that does not exist in the scene you just moved to is
+            -- not an error, it is the same clamp the painter does
+            local hands = handsFor(nextId)
+            if hand > #hands then mod.save:set("hand", math.max(1, #hands)) end
+          end,
+        }
+        local hands = handsFor(id)
+        rows[#rows + 1] = {
+          label = "HAND",
+          value = function()
+            local h = hands[math.max(1, math.min(#hands, hand))]
+            return (h and h.by) or "-"
+          end,
+          step = function(d)
+            if #hands == 0 then return end
+            mod.save:set("hand", (hand - 1 + d) % #hands + 1)
+          end,
+        }
+      end
+      return rows
+    end
+    self.viewRows = viewRows
 
     local function drawScene(L)
       local paper, style, paint = scenePaper()
@@ -1220,8 +1325,35 @@ return function(mod)
         line = Strings("NOTHING HERE")
       end
       Font.draw(fit(line), TEXT_X, L.h - 22)
-      Font.draw(fit(Strings("SEEN %d SEL:FILTER B:EXIT", self.seen)),
+      Font.draw(fit(Strings("SEEN %d SEL:VIEW B:EXIT", self.seen)),
         TEXT_X, L.h - 12)
+
+      -- ------- the VIEW panel, drawn
+      --
+      -- Down the left, clear of the species menu's corner, and no wider than
+      -- it needs: the whole point is that the wallpaper behind it keeps
+      -- showing while you choose one, so a panel that covered the screen
+      -- would be a panel that hid the thing being chosen.
+      if self.view then
+        -- One line per row and no taller than it has to be. The scene being
+        -- chosen is BEHIND this panel: a box that filled the screen would
+        -- hide the only thing the panel exists to show.
+        local rows = self.viewRows()
+        local tw = 16
+        local th = #rows + 2
+        local tx, ty = 1, math.floor((L.h - 22) / 8) - th
+        Font.drawBox(tx, ty, tw, th)
+        love.graphics.setColor(0, 0, 0, 1)
+        for i, row in ipairs(rows) do
+          local y = (ty + i) * 8
+          if i == self.view.row then Font.draw(Strings("<"), tx * 8 + 4, y) end
+          Font.draw(row.label, tx * 8 + 12, y)
+          local value = tostring(row.value() or "")
+          local vw = Font.width(value)
+          Font.draw(value, (tx + tw) * 8 - 6 - vw, y)
+        end
+        love.graphics.setColor(0, 0, 0, 1)
+      end
 
       if self.choice then
         -- top-right, clear of the footer and of the first cells
