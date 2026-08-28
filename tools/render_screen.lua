@@ -150,6 +150,17 @@ end
 for _, name in ipairs(scenes) do
   store.scene = name
   screen.view = (os.getenv("PANEL") == "1") and { row = 2 } or nil
+  -- PICK=1 draws the chooser: no panel, the screen itself wearing the scene
+  if os.getenv("PICK") == "1" then
+    screen.view = nil
+    local scenes = screen.sceneList()
+    local at = 1
+    for i, id in ipairs(scenes) do if id == name then at = i end end
+    screen.pick = { scenes = scenes, at = at, hand = 1,
+                    wasScene = name, wasHand = 1, moved = os.getenv("MOVED") == "1" }
+  else
+    screen.pick = nil
+  end
   clear()
   local ok, err = pcall(function() screen:draw() end)
   if not ok then print("FAILED " .. name .. ": " .. tostring(err)) end

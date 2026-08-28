@@ -1065,6 +1065,57 @@ do
     T.check(ok, "e un painter che esplode nemmeno")
   end
 
+  -- ------- THEME opens the box's chooser, and the screen is the preview
+  do
+    store.backdrop = "scene"
+    store.scene, store.hand = "SKY", "1"
+    local painted = {}
+    local s = factory.new(fakeGame(3, 0))
+    s.boxHandle = function() return fakeBox(painted) end
+
+    press("select"); s:update()
+    local rows = s.viewRows()
+    T.eq(rows[2] and rows[2].label, "THEME",
+      "il pannello ha una riga THEME, non due righe da scorrere al buio")
+
+    s.view.row = 2
+    press("a"); s:update()
+    T.check(s.view == nil and s.pick ~= nil,
+      "A su THEME apre il selettore invece di cambiare un valore")
+
+    -- muovendosi, lo SFONDO cambia: e' l'anteprima, e non c'e' un pannello
+    -- che la copre
+    painted = {}
+    s:draw()
+    local before = painted[1] and painted[1].id
+    press("down"); s:update()
+    painted = {}
+    s:draw()
+    local after = painted[1] and painted[1].id
+    T.check(before and after and before ~= after,
+      "e muovendo giu' lo sfondo dietro cambia davvero")
+
+    -- B rimette quello che c'era
+    press("b"); s:update()
+    T.check(s.pick == nil, "B chiude il selettore")
+    painted = {}
+    s:draw()
+    T.eq(painted[1] and painted[1].id, "SKY",
+      "e rimette la scena che c'era prima di entrare")
+
+    -- A tiene quella scelta
+    press("select"); s:update()
+    s.view.row = 2
+    press("a"); s:update()
+    press("down"); s:update()
+    local chosen = s.pick.scenes[s.pick.at]
+    press("a"); s:update()
+    T.check(s.pick == nil, "A chiude il selettore")
+    painted = {}
+    s:draw()
+    T.eq(painted[1] and painted[1].id, chosen, "e tiene quella scelta")
+  end
+
   store.backdrop = "soft"
 end
 

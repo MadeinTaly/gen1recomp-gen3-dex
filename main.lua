@@ -879,6 +879,67 @@ return function(mod)
         return
       end
 
+      -- ------- choosing a wallpaper the way the box does
+      --
+      -- Up and down change the scene, left and right change the hand, and
+      -- the screen behind is what you are choosing -- no panel, no preview
+      -- window, the Pokedex itself wears it while you move. A keeps it, B
+      -- puts back what was there. It is the box's chooser, key for key,
+      -- because a player who has both mods has already learnt it once.
+      if self.pick then
+        local pick = self.pick
+        -- self.handsFor, not the local: like viewRows, these are built
+        -- further down the constructor than update() is
+        local function hands() return self.handsFor(pick.scenes[pick.at]) end
+        if input:wasPressed("up") then
+          pick.at = (pick.at - 2) % #pick.scenes + 1
+          pick.hand = math.min(pick.hand, math.max(1, #hands()))
+          pick.moved = true
+        elseif input:wasPressed("down") then
+          pick.at = pick.at % #pick.scenes + 1
+          pick.hand = math.min(pick.hand, math.max(1, #hands()))
+          pick.moved = true
+        elseif input:wasPressed("left") then
+          local n = math.max(1, #hands())
+          pick.hand = (pick.hand - 2) % n + 1
+          pick.moved = true
+        elseif input:wasPressed("right") then
+          local n = math.max(1, #hands())
+          pick.hand = pick.hand % n + 1
+          pick.moved = true
+        elseif input:wasPressed("a") then
+          mod.save:set("scene", pick.scenes[pick.at])
+          mod.save:set("hand", pick.hand)
+          self.pick = nil
+        elseif input:wasPressed("b") then
+          mod.save:set("scene", pick.wasScene)
+          mod.save:set("hand", pick.wasHand)
+          self.pick = nil
+        end
+        return
+      end
+
+      if self.view then
+        -- self.viewRows rather than the local: the rows are built further
+        -- down the constructor, and update() runs long after all of it
+        local rows = self.viewRows()
+        local row = rows[self.view.row]
+        if input:wasPressed("b") or input:wasPressed("select") then
+          self.view = nil
+        elseif input:wasPressed("up") then
+          self.view.row = (self.view.row - 2) % #rows + 1
+        elseif input:wasPressed("down") then
+          self.view.row = self.view.row % #rows + 1
+        elseif input:wasPressed("a") then
+          if row.open then row.open() else row.step(1) end
+        elseif input:wasPressed("left") then
+          if row.step then row.step(-1) end
+        elseif input:wasPressed("right") then
+          if row.step then row.step(1) end
+        end
+        return
+      end
+
       if input:wasPressed("b") then
         game.stack:pop()
         return
@@ -892,25 +953,6 @@ return function(mod)
       -- label, and you found out by watching the list change. It opens this
       -- instead, where each row says what it is and the wallpaper behind
       -- changes AS YOU MOVE, which is the only way to choose one.
-      if self.view then
-        -- self.viewRows rather than the local: the rows are built further
-        -- down the constructor, and update() runs long after all of it
-        local rows = self.viewRows()
-        local row = rows[self.view.row]
-        if input:wasPressed("b") or input:wasPressed("select") then
-          self.view = nil
-        elseif input:wasPressed("up") then
-          self.view.row = (self.view.row - 2) % #rows + 1
-        elseif input:wasPressed("down") then
-          self.view.row = self.view.row % #rows + 1
-        elseif input:wasPressed("left") then
-          row.step(-1)
-        elseif input:wasPressed("right") or input:wasPressed("a") then
-          row.step(1)
-        end
-        return
-      end
-
       if input:wasPressed("select") then
         self.view = { row = 1 }
         return
@@ -1047,6 +1089,11 @@ return function(mod)
     end
 
     local function sceneChoice()
+      -- while the chooser is open the screen wears what the cursor is on,
+      -- not what was saved: that IS the preview
+      if self.pick then
+        return self.pick.scenes[self.pick.at], self.pick.hand
+      end
       local saved = mod.save:get("scene")
       local hand = mod.save:get("hand")
       local id = (type(saved) == "string" and saved ~= "" and saved) or opt("scene", "SKY")
@@ -1143,40 +1190,34 @@ return function(mod)
           rebuild()
         end,
       }
-      local scenes = sceneList()
-      if #scenes > 0 then
+      if #sceneList() > 0 then
+        -- THEME is not a value to step through here: stepping a wallpaper
+        -- inside a panel that covers it is choosing blind, which is what the
+        -- first version of this got wrong. A opens the box's own chooser
+        -- instead, where the screen itself is the preview.
         local id, hand = sceneChoice()
-        local at = 1
-        for i, s in ipairs(scenes) do if s == id then at = i end end
         rows[#rows + 1] = {
-          label = "SCENE",
-          value = function() return (backdropName() == "scene") and id or "OFF" end,
-          step = function(d)
-            if backdropName() ~= "scene" then return end
-            local nextId = scenes[(at - 1 + d) % #scenes + 1]
-            mod.save:set("scene", nextId)
-            -- a hand that does not exist in the scene you just moved to is
-            -- not an error, it is the same clamp the painter does
-            local hands = handsFor(nextId)
-            if hand > #hands then mod.save:set("hand", math.max(1, #hands)) end
-          end,
-        }
-        local hands = handsFor(id)
-        rows[#rows + 1] = {
-          label = "HAND",
+          label = "THEME",
           value = function()
+            if backdropName() ~= "scene" then return "OFF" end
+            local hands = handsFor(id)
             local h = hands[math.max(1, math.min(#hands, hand))]
-            return (h and h.by) or "-"
+            return id .. ((h and h.by) and (" " .. h.by) or "")
           end,
-          step = function(d)
-            if #hands == 0 then return end
-            mod.save:set("hand", (hand - 1 + d) % #hands + 1)
+          open = function()
+            local scenes, at = sceneList(), 1
+            for i, sid in ipairs(scenes) do if sid == id then at = i end end
+            self.view = nil
+            self.pick = { scenes = scenes, at = at, hand = hand,
+                          wasScene = id, wasHand = hand }
           end,
         }
       end
       return rows
     end
     self.viewRows = viewRows
+    self.handsFor = handsFor
+    self.sceneList = sceneList
 
     local function drawScene(L)
       local paper, style, paint = scenePaper()
@@ -1335,9 +1376,9 @@ return function(mod)
       -- showing while you choose one, so a panel that covered the screen
       -- would be a panel that hid the thing being chosen.
       if self.view then
-        -- One line per row and no taller than it has to be. The scene being
-        -- chosen is BEHIND this panel: a box that filled the screen would
-        -- hide the only thing the panel exists to show.
+        -- One line per row and no taller than it has to be. The scene lives
+        -- BEHIND this panel: a box that filled the screen would hide the
+        -- thing the panel exists to change.
         local rows = self.viewRows()
         local tw = 16
         local th = #rows + 2
@@ -1346,13 +1387,42 @@ return function(mod)
         love.graphics.setColor(0, 0, 0, 1)
         for i, row in ipairs(rows) do
           local y = (ty + i) * 8
-          if i == self.view.row then Font.draw(Strings("<"), tx * 8 + 4, y) end
-          Font.draw(row.label, tx * 8 + 12, y)
+          -- the same cursor glyph the species menu uses, so the two menus
+          -- on this screen are visibly the same kind of thing
+          if i == self.view.row then Font.drawCode(Theme.cursor, tx * 8 + 4, y) end
+          Font.draw(row.label, tx * 8 + 14, y)
           local value = tostring(row.value() or "")
-          local vw = Font.width(value)
-          Font.draw(value, (tx + tw) * 8 - 6 - vw, y)
+          Font.draw(value, (tx + tw) * 8 - 6 - Font.width(value), y)
         end
         love.graphics.setColor(0, 0, 0, 1)
+      end
+
+      -- ------- the chooser's own line
+      --
+      -- No panel at all: the screen IS the preview, so all it needs is a
+      -- line saying which scene and whose hand, plus the arrows that say
+      -- the D-pad does something here. The same shape the box uses, on the
+      -- same row as this screen's own footer.
+      if self.pick then
+        local id = self.pick.scenes[self.pick.at]
+        local hands = handsFor(id)
+        local h = hands[math.max(1, math.min(#hands, self.pick.hand))]
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.rectangle("fill", 0, L.h - 24, L.w, 24)
+        love.graphics.setColor(0, 0, 0, 1)
+        if self.pick.moved then
+          Font.draw(fit(Strings("%s", id)), TEXT_X, L.h - 22)
+          local by = Strings("<%s>", (h and h.by) or "-")
+          Font.draw(by, L.w - TEXT_X - Font.width(by), L.h - 22)
+          Font.draw(fit(Strings("A:KEEP B:BACK")), TEXT_X, L.h - 12)
+        else
+          -- until the D-pad is touched, say what it does. The box learnt
+          -- this the hard way: a chooser that only shows a name looks like
+          -- a label rather than something you can move.
+          Font.draw(fit(Strings("%s <%s>", id, (h and h.by) or "-")),
+            TEXT_X, L.h - 22)
+          Font.draw(fit(Strings("UP/DN SCENE  L/R HAND")), TEXT_X, L.h - 12)
+        end
       end
 
       if self.choice then

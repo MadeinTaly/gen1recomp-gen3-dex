@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.10.0 — the box's chooser, here
+
+0.9.0 put SCENE and HAND in a panel and let you step them there, which was
+choosing a wallpaper through the thing covering it. **THEME** is one row now,
+and A opens the chooser the box has: **no panel at all** -- up and down
+change the scene, left and right change the hand, and the Pokedex itself
+wears what the cursor is on while you move. A keeps it, B puts back what was
+there before you came in.
+
+It is the box's chooser key for key, and deliberately so: anyone with both
+mods has already learnt it once. The footer says what the D-pad does until
+you touch it, then gets out of the way -- the same lesson the box learnt
+from a chooser that looked like a label.
+
+The VIEW panel also has a **cursor** now, the same glyph the species menu
+draws, so the two menus on this screen look like the same kind of thing.
+
 ## 0.9.0 — SELECT opens a panel instead of cycling in the dark
 
 You could only change the backdrop from `START -> MODS -> OPTIONS`, which is
