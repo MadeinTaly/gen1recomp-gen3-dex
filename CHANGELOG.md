@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.8.0 — the box's wallpapers, behind the list
+
+`BACKDROP` gains **SCENE**, which is now the default: the Pokedex draws one
+of the ninety-one wallpapers from
+[gen1recomp-gen3-boxes](https://github.com/MadeinTaly/gen1recomp-gen3-boxes)
+behind the list. `SCENE` and `HAND` say which — **one choice for the whole
+Pokedex**, not one per page: a box has a scene each because a box is a shelf
+you assign a meaning to, and this is a single list.
+
+It is borrowed, not copied. That mod exports its painter and the Pokedex
+calls it through `mod.find`, the same soft seam OW SPRITES uses for Wilds of
+Kanto — never a manifest dependency. No box mod, an older one without the
+seam, or a painter that raises, and the backdrop falls back to SOFT with the
+frame intact. The art ships once, in the mod that owns it.
+
+**The scene goes under a veil, and the veil is solved rather than picked.**
+Every caption, number and entry name here is black, and half of those scenes
+are night scenes: NIGHT, CIRCUIT, SPACE and VOLCANO would swallow the list
+whole. Recolouring the type would be the other answer, and it is the one
+that ends with a screen nobody can read in the combination nobody tested.
+So the scene is composited under white until its DARKEST tone reaches a
+luminance of 180 — the darkest tone, not the average, because a night scene
+averages middling on the strength of its star colour and a veil chosen off
+that leaves black text on charcoal.
+
+The four painted backdrops from 0.7.0 are still there, WHITE included.
+
 ## 0.7.0 — something behind the list
 
 The screen was a white sheet, which is what a Game Boy list is and also what

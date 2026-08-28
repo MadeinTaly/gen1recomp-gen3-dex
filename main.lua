@@ -100,13 +100,36 @@ return function(mod)
     -- backdrop would mean recolouring the type, and type that changes
     -- colour with a background setting is how a screen ends up unreadable
     -- in one combination nobody tested.
-    { key = "backdrop", label = "BACKDROP", type = "choice", default = "soft",
+    { key = "backdrop", label = "BACKDROP", type = "choice", default = "scene",
       choices = {
+        { "SCENE", "scene" },
         { "SOFT", "soft" },
         { "PAPER", "paper" },
         { "MINT", "mint" },
         { "PEACH", "peach" },
         { "WHITE", "white" },
+      } },
+    -- SCENE draws one of gen3_box's wallpapers, and these two say which.
+    -- They are ONE choice for the whole Pokedex rather than one per page:
+    -- the box has a scene per box because a box is a shelf you assign a
+    -- meaning to, and the Pokedex is a single list.
+    --
+    -- Two rows rather than a chooser screen: a scene and a hand is exactly
+    -- the shape of the pair the box menu offers, and rebuilding that whole
+    -- interface here to set one value would be a screen to maintain twice.
+    { key = "scene", label = "SCENE", type = "choice", default = "SKY",
+      choices = {
+        { "SEA", "SEA" }, { "FOREST", "FOREST" }, { "SKY", "SKY" },
+        { "CAVE", "CAVE" }, { "CITY", "CITY" }, { "SNOW", "SNOW" },
+        { "NIGHT", "NIGHT" }, { "DESERT", "DESERT" }, { "VOLCANO", "VOLCANO" },
+        { "SPACE", "SPACE" }, { "CASTLE", "CASTLE" }, { "SAKURA", "SAKURA" },
+        { "STORM", "STORM" }, { "CIRCUIT", "CIRCUIT" }, { "TRAIN", "TRAIN" },
+        { "90S", "90S" },
+      } },
+    { key = "hand", label = "HAND", type = "choice", default = "1",
+      choices = {
+        { "1", "1" }, { "2", "2" }, { "3", "3" }, { "4", "4" },
+        { "5", "5" }, { "6", "6" }, { "7", "7" },
       } },
     -- See "the game's own menu icon" below. Three settings rather than a
     -- switch, because the two reasonable answers disagree and neither of
@@ -966,8 +989,109 @@ return function(mod)
       return value
     end
 
+    -- ------- the box's wallpapers, borrowed
+    --
+    -- gen1recomp-gen3-boxes draws ninety-one scenes and ships the art for
+    -- them. Copying either the code or the files here would mean two of
+    -- everything and a slow drift between them, so this asks that mod for
+    -- its painter through `mod.find` -- the same soft seam OW SPRITES uses
+    -- for Wilds of Kanto, never a manifest dependency. No box mod, or an
+    -- older one without the seam, and BACKDROP falls back to SOFT.
+    local BOX_ID = "gen3_box"
+
+    function self.boxHandle()
+      local ok, handle = pcall(mod.find, BOX_ID)
+      if not ok then return nil end
+      return handle
+    end
+
+    -- A tick of its own: the Pokedex has no `paperTick`, and the scenes
+    -- drift by it. One step per drawn frame is what the box does.
+    self.sceneTick = 0
+
+    local function sceneChoice()
+      local function opt(key, fallback)
+        local ok, value = pcall(function() return mod.options:get(key) end)
+        if not ok or value == nil or value == "" then return fallback end
+        return value
+      end
+      return opt("scene", "SKY"), math.max(1, tonumber(opt("hand", "1")) or 1)
+    end
+
+    -- Returns the wallpaper record and the style to draw it with, or nil if
+    -- the box mod is not there to ask.
+    local function scenePaper()
+      local handle = self.boxHandle()
+      local exports = handle and handle.exports
+      if not (exports and exports.paintWallpaper and exports.wallpapers) then
+        return nil
+      end
+      local id, hand = sceneChoice()
+      local paper
+      for _, w in ipairs(exports.wallpapers) do
+        if w.id == id then paper = w end
+      end
+      if not paper then return nil end
+      local list = (exports.wallpaperArt or {})[id] or {}
+      -- a HAND past the end of a scene's list is not an error, it is a
+      -- player who set 7 and then chose a scene with five: clamp rather
+      -- than draw nothing
+      local style = list[math.max(1, math.min(#list, hand))]
+      return paper, style, exports.paintWallpaper
+    end
+
+    -- How much white goes over a scene before the list sits on it.
+    --
+    -- Every caption, number and entry name on this screen is black, and half
+    -- of the box's scenes are night scenes: NIGHT, CIRCUIT, SPACE and
+    -- VOLCANO would swallow the list whole. Rather than recolouring the type
+    -- -- which is how a screen ends up unreadable in the one combination
+    -- nobody tested -- the scene goes under a veil, and how heavy the veil
+    -- is comes from the scene's own four colours. A dark room takes a lot; a
+    -- pale sky takes a little; either way what you see is the scene, muted,
+    -- with a list you can read on top of it.
+    local function veilFor(paper, style)
+      local palette = (style and style.palette) or (paper and paper.palette)
+      if not palette then return 0.5 end
+      local total, n, darkest = 0, 0, 255
+      for i = 1, 4 do
+        local c = palette[i]
+        if type(c) == "table" and c[1] and c[2] and c[3] then
+          local luma = 0.299 * c[1] + 0.587 * c[2] + 0.114 * c[3]
+          total, n = total + luma, n + 1
+          if luma < darkest then darkest = luma end
+        end
+      end
+      if n == 0 then return 0.5 end
+      -- The DARKEST tone decides it, not the average. A night scene averages
+      -- middling because its ramp ends in a bright star colour, and a veil
+      -- chosen off that average leaves black text on charcoal. What has to
+      -- be true is that the darkest thing in the picture ends up light
+      -- enough to read black type on, so the veil is solved for exactly
+      -- that: composite the scene under white until its floor reaches 180.
+      local veil = (180 - darkest) / (255 - darkest)
+      return math.max(0.15, math.min(0.82, veil))
+    end
+
+    local function drawScene(L)
+      local paper, style, paint = scenePaper()
+      if not paint then return false end
+      local ok = pcall(paint, paper, L.w, L.h, style, self.sceneTick)
+      if not ok then return false end
+      local veil = veilFor(paper, style)
+      love.graphics.setColor(1, 1, 1, veil)
+      love.graphics.rectangle("fill", 0, 0, L.w, L.h)
+      love.graphics.setColor(1, 1, 1, 1)
+      return true
+    end
+
     local function drawBackdrop(L)
       local name = backdropName()
+      if name == "scene" then
+        if drawScene(L) then return end
+        -- the box mod is not installed: SOFT rather than nothing
+        name = "soft"
+      end
       local tones = BACKDROPS[name]
       if not tones then return end
       local function set(i, a)
@@ -1025,6 +1149,7 @@ return function(mod)
 
     function self:draw()
       local L = layout(game)
+      self.sceneTick = (self.sceneTick or 0) + 1
       love.graphics.clear(1, 1, 1, 1)
       drawBackdrop(L)
       love.graphics.setColor(0, 0, 0, 1)

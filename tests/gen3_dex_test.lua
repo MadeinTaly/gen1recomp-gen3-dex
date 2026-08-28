@@ -964,4 +964,99 @@ do
   gen2Run.release()
 end
 
+-- ------- the box's wallpapers, borrowed
+--
+-- gen1recomp-gen3-boxes draws ninety-one scenes and ships the art for them.
+-- Copying either the code or the files here would mean two of everything and
+-- a slow drift between them, so the Pokedex asks that mod for its painter
+-- through mod.find -- the same soft seam OW SPRITES uses for Wilds of Kanto.
+-- Everything below drives self.boxHandle rather than a second mod on the
+-- loader, for the same reason the OW tests drive self.owHandle.
+do
+  store.backdrop = "scene"
+
+  local function fakeBox(recorder, wallpapers, art)
+    return { exports = {
+      wallpapers = wallpapers or {
+        { id = "SKY", pattern = "SKY",
+          palette = { { 240, 250, 255 }, { 186, 224, 248 },
+                      { 120, 178, 226 }, { 50, 96, 150 } } },
+        { id = "NIGHT", pattern = "NIGHT",
+          palette = { { 30, 30, 40 }, { 70, 70, 92 },
+                      { 140, 140, 168 }, { 226, 226, 240 } } },
+      },
+      wallpaperArt = art or {
+        SKY = { { by = "GEN3 BOX" }, { by = "DUSTDFG" } },
+        NIGHT = { { by = "GEN3 BOX" } },
+      },
+      paintWallpaper = function(paper, w, h, style, tick)
+        recorder[#recorder + 1] = { id = paper and paper.id, w = w, h = h,
+                                    by = style and style.by, tick = tick }
+      end,
+    } }
+  end
+
+  -- no box mod: the screen still draws, and draws a backdrop of its own
+  do
+    local s = factory.new(fakeGame(3, 0))
+    s.boxHandle = function() return nil end
+    local ok = pcall(function() s:draw() end)
+    T.check(ok, "senza la mod delle box il Pokedex si disegna lo stesso")
+  end
+
+  -- the scene and the hand the options name, at the Pokedex's own size
+  do
+    store.scene, store.hand = "SKY", "2"
+    local painted = {}
+    local s = factory.new(fakeGame(3, 0))
+    s.boxHandle = function() return fakeBox(painted) end
+    s:draw()
+    T.eq(#painted, 1, "con la mod installata lo sfondo lo dipinge lei")
+    T.eq(painted[1].id, "SKY", "e dipinge la scena scelta nelle opzioni")
+    T.eq(painted[1].by, "DUSTDFG", "con la mano scelta nelle opzioni")
+    local L = s.layout and s.layout() or nil
+    T.check(painted[1].w > 0 and painted[1].h > 0,
+      "alla misura dello schermo del Pokedex, non a quella della box")
+  end
+
+  -- a HAND past the end of a scene's list is a player who set 7 and then
+  -- chose a scene with one hand: clamp, do not draw nothing
+  do
+    store.scene, store.hand = "NIGHT", "7"
+    local painted = {}
+    local s = factory.new(fakeGame(3, 0))
+    s.boxHandle = function() return fakeBox(painted) end
+    s:draw()
+    T.eq(#painted, 1, "una MANO oltre la fine non lascia lo schermo vuoto")
+    T.eq(painted[1].by, "GEN3 BOX", "ma ricade sull'ultima che esiste")
+  end
+
+  -- an older box mod, without the seam: fall back rather than raise
+  do
+    store.scene, store.hand = "SKY", "1"
+    local s = factory.new(fakeGame(3, 0))
+    s.boxHandle = function() return { exports = { wallpapers = {} } } end
+    local ok = pcall(function() s:draw() end)
+    T.check(ok, "una mod delle box senza il seam non fa cadere il frame")
+  end
+
+  -- a painter that raises must not take the Pokedex with it
+  do
+    store.scene, store.hand = "SKY", "1"
+    local s = factory.new(fakeGame(3, 0))
+    s.boxHandle = function()
+      return { exports = {
+        wallpapers = { { id = "SKY", pattern = "SKY", palette = {
+          { 240, 250, 255 }, { 186, 224, 248 }, { 120, 178, 226 }, { 50, 96, 150 } } } },
+        wallpaperArt = { SKY = { { by = "GEN3 BOX" } } },
+        paintWallpaper = function() error("boom") end,
+      } }
+    end
+    local ok = pcall(function() s:draw() end)
+    T.check(ok, "e un painter che esplode nemmeno")
+  end
+
+  store.backdrop = "soft"
+end
+
 T.finish("gen3_dex")
