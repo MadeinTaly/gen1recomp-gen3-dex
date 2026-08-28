@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.0 — the box's chooser, here
+## 0.10.0 — the box's chooser, here, and the scene actually visible
 
 0.9.0 put SCENE and HAND in a panel and let you step them there, which was
 choosing a wallpaper through the thing covering it. **THEME** is one row now,
@@ -16,6 +16,18 @@ from a chooser that looked like a label.
 
 The VIEW panel also has a **cursor** now, the same glyph the species menu
 draws, so the two menus on this screen look like the same kind of thing.
+
+**And the scene is no longer washed away.** 0.8.0 put the whole screen under
+a veil so black type would read on it; a photograph of the chooser open on
+AURORA settled what that looks like — a white screen with a grey smudge
+along the bottom, and the aurora gone. Veiling every cell instead was no
+better: this grid's cells touch, so washing them is washing the screen.
+
+What carries black type is two thin caption rows, and those get solid bands.
+The cells take a **whisper** — 15%, the same as the box's slots — and the
+scene keeps its colour everywhere else. Over a dark scene the cell rules are
+drawn in white rather than black, because a black rule on a night sky is not
+a rule.
 
 ## 0.9.0 — SELECT opens a panel instead of cycling in the dark
 

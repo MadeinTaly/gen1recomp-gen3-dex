@@ -1224,10 +1224,16 @@ return function(mod)
       if not paint then return false end
       local ok = pcall(paint, paper, L.w, L.h, style, self.sceneTick)
       if not ok then return false end
-      local veil = veilFor(paper, style)
-      love.graphics.setColor(1, 1, 1, veil)
-      love.graphics.rectangle("fill", 0, 0, L.w, L.h)
-      love.graphics.setColor(1, 1, 1, 1)
+      -- The veil is NOT laid over the whole screen. Doing that was the
+      -- first version and it was wrong in the way a photograph shows: a
+      -- dark scene under seventy percent white is not a muted scene, it is
+      -- a white screen with a grey smudge along the bottom, and the aurora
+      -- it was meant to show had disappeared entirely.
+      --
+      -- What needs to be light is what carries black type: the cells and
+      -- the two caption rows. Those get it, the scene keeps the rest, and
+      -- that is the arrangement the box already uses.
+      self.sceneVeil = veilFor(paper, style)
       return true
     end
 
@@ -1298,16 +1304,40 @@ return function(mod)
       self.sceneTick = (self.sceneTick or 0) + 1
       love.graphics.clear(1, 1, 1, 1)
       drawBackdrop(L)
+      -- the caption rows on solid bands: they carry black type, they are
+      -- two thin strips, and a scene is not worth losing a title over
+      if backdropName() == "scene" and self.sceneVeil then
+        love.graphics.setColor(1, 1, 1, 0.92)
+        love.graphics.rectangle("fill", 0, 0, L.w, 14)
+        love.graphics.rectangle("fill", 0, L.h - 24, L.w, 24)
+      end
       love.graphics.setColor(0, 0, 0, 1)
 
       Font.draw(fit(Strings("POKeDEX %d/%d %s",
         self.owned, self.total, FILTERS[self.filter].label)), TEXT_X, 4)
 
       local start = pageStart()
+      -- This grid has no margins: its cells touch, so washing every cell is
+      -- washing the whole screen -- which is how the first two attempts at
+      -- this ended with a white screen and a smudge. The cells take a
+      -- WHISPER, 15%, exactly as the box's slots do, and the scene keeps
+      -- its colour between and behind them.
+      local onScene = backdropName() == "scene" and self.sceneVeil ~= nil
+      local dark = onScene and self.sceneVeil > 0.5
       for slot = 0, perPage() - 1 do
         local x, y = cellRect(slot)
         local e = self.entries[start + slot + 1]
-        love.graphics.setColor(0, 0, 0, 0.25)
+        if onScene then
+          love.graphics.setColor(1, 1, 1, 0.15)
+          love.graphics.rectangle("fill", x, y, L.cell, L.cell)
+        end
+        -- black rules vanish on a night scene, so over a dark one they are
+        -- drawn in white instead: the grid has to read either way
+        if dark then
+          love.graphics.setColor(1, 1, 1, 0.4)
+        else
+          love.graphics.setColor(0, 0, 0, 0.25)
+        end
         love.graphics.rectangle("line", x + 0.5, y + 0.5, L.cell - 1, L.cell - 1)
         love.graphics.setColor(1, 1, 1, 1)
         if e then
