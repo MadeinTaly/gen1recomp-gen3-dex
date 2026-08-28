@@ -1164,6 +1164,33 @@ do
     T.check(hasOwn and hasBorrowed, "e le due serie convivono nella stessa lista")
   end
 
+  -- ------- una scena tiene i suoi colori
+  --
+  -- Una scena e' dipinta col SUO RGB, e la passata di palette la
+  -- riappiattirebbe su quattro grigi lasciando colorati solo i Pokemon
+  -- sopra -- che e' esattamente quello che la mod delle box ha spedito
+  -- nella 1.10.1 e corretto nella 1.10.2. Qui la zona di fondo esce dal
+  -- rimappaggio quando c'e' una scena, e resta GRAYS quando non c'e'.
+  do
+    local PaletteFX = require("src.render.PaletteFX")
+    local s = factory.new(fakeGame(3, 0))
+    s.boxHandle = function() return nil end
+    saveOf().scene = nil
+    store.backdrop = "scene"
+    local zones = s:sgbPalettes()
+    if zones then
+      T.eq(zones[1].colors, false,
+        "con una scena la superficie esce dal rimappaggio")
+    end
+    store.backdrop = "white"
+    zones = s:sgbPalettes()
+    if zones then
+      T.check(zones[1].colors == PaletteFX.GRAYS,
+        "e senza scena resta il grigio di sempre")
+    end
+    store.backdrop = "scene"
+  end
+
   -- ------- le due colonne del pannello non si toccano
   --
   -- Etichetta a sinistra, valore a destra, e il valore troncato a quello che

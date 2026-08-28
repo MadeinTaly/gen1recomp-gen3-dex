@@ -791,8 +791,24 @@ return function(mod)
       if L.cell % 8 ~= 0 or L.gridX % 8 ~= 0 or L.gridY % 8 ~= 0 then
         return nil
       end
+      -- A scene is painted in its OWN RGB -- this mod's six are, and a
+      -- borrowed one arrives already coloured -- so running the finished
+      -- picture through the shade-remap flattens it onto four greys while
+      -- the Pokemon on top keep their species colours. That is precisely
+      -- what gen3_box shipped in 1.10.1 and fixed in 1.10.2, and this
+      -- screen inherited the same mistake by not thinking about it.
+      --
+      -- The base zone opts OUT when a scene is drawn: colors == false is the
+      -- engine's trueColor escape (PaletteFX.trueColorZone), and it still
+      -- has to be first and still has to cover everything, because the
+      -- per-species cells below are drawn over it in order.
+      -- not self.sceneVeil: that is only set once a frame has been drawn,
+      -- and this is asked before the first one
+      local onScene = self.sceneIsDrawn()
+      local bare = onScene and type(PaletteFX.trueColorZone) == "function"
+        and PaletteFX.trueColorZone(0, 0, L.w / 8 - 1, L.h / 8 - 1)
       local zones = {
-        PaletteFX.zone(PaletteFX.GRAYS, 0, 0, L.w / 8 - 1, L.h / 8 - 1),
+        bare or PaletteFX.zone(PaletteFX.GRAYS, 0, 0, L.w / 8 - 1, L.h / 8 - 1),
       }
       local tiles = L.cell / 8
       local start = pageStart()
@@ -1411,6 +1427,18 @@ return function(mod)
     self.handsFor = handsFor
     self.sceneList = sceneList
 
+    -- Whether a scene will actually be painted this frame: BACKDROP says
+    -- SCENE, and either it is one of this mod's own or the box mod is there
+    -- to paint its one. Both the palette zones and the cell wash ask this.
+    function self.sceneIsDrawn()
+      if backdropName() ~= "scene" then return false end
+      local id = sceneChoice()
+      if id == nil or OWN_BY_ID[id] then return true end
+      local handle = self.boxHandle()
+      local exports = handle and handle.exports
+      return (exports and exports.paintWallpaper) ~= nil
+    end
+
     local function drawScene(L)
       local id = sceneChoice()
       local own = OWN_BY_ID[id or ""]
@@ -1509,7 +1537,7 @@ return function(mod)
       drawBackdrop(L)
       -- the caption rows on solid bands: they carry black type, they are
       -- two thin strips, and a scene is not worth losing a title over
-      if backdropName() == "scene" and self.sceneVeil then
+      if self.sceneIsDrawn() then
         love.graphics.setColor(1, 1, 1, 0.92)
         love.graphics.rectangle("fill", 0, 0, L.w, 14)
         love.graphics.rectangle("fill", 0, L.h - 24, L.w, 24)
@@ -1525,8 +1553,8 @@ return function(mod)
       -- this ended with a white screen and a smudge. The cells take a
       -- WHISPER, 15%, exactly as the box's slots do, and the scene keeps
       -- its colour between and behind them.
-      local onScene = backdropName() == "scene" and self.sceneVeil ~= nil
-      local dark = onScene and self.sceneVeil > 0.5
+      local onScene = self.sceneIsDrawn()
+      local dark = onScene and (self.sceneVeil or 0) > 0.5
       for slot = 0, perPage() - 1 do
         local x, y = cellRect(slot)
         local e = self.entries[start + slot + 1]

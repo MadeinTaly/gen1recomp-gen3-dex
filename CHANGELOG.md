@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.1 — the scene keeps its colours
+
+Reported with a photograph: the Pokedex drawing FOREST in four greys while
+the Pokemon on top of it stayed orange and pink.
+
+A scene is painted in its OWN RGB -- this mod's six are, and a borrowed one
+arrives already coloured -- and on GRID BIG the engine then ran the finished
+picture through the shade-remap a second time, flattening it. The base zone
+opts out now, exactly as gen3_box's has since its 1.10.2: the per-species
+cells are still drawn over it afterwards, so the entries keep their colours.
+
+This is the same bug the box shipped and fixed months of work ago, in the
+other mod, for the same reason. Inheriting a screen's shape without
+inheriting what it learnt is how that happens, and the fix is now tested on
+both sides rather than remembered.
+
 ## 0.11.0 — six scenes of its own
 
 0.8.0 made this mod's backdrop depend on gen3_box, and that was the wrong
