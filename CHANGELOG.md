@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.11.0 — six scenes of its own
+
+0.8.0 made this mod's backdrop depend on gen3_box, and that was the wrong
+shape: **two mods that each stand alone are two mods; one that goes blank
+without the other is half of one.** Reported as exactly that, and correctly.
+
+**DAWN, SEA, FOREST, NIGHT, EMBER and PAPER are drawn here**, in this file,
+with this mod's own art -- no files, no imports, nothing borrowed. A sun over
+three ridges at first light; a shallow sea with weed leaning in the current;
+a forest with leaves coming down at three depths; a starfield with a crescent
+over a low hill; embers rising off a dark ridge; and ruled paper with a
+shadow crossing it. Horizons are drawn from two sines and a wobble rather
+than from triangles, because a triangle horizon is a zigzag and a single sine
+is a hump.
+
+**If gen3_box is installed and new enough, its ninety-one scenes are offered
+too**, appended after these. That is the right shape for a cross-mod seam:
+better together, whole apart. Without it, nothing is missing and nothing
+complains -- `NEEDS BOX 1.15+` appears only if you pick one of ITS scenes
+with an older copy installed.
+
+`SCENE` and `HAND` are gone from the options: two lists of bare names in a
+settings menu is a worse way to pick a picture than the chooser on the
+screen. **SELECT, then A on THEME.**
+
+The panel's columns also stopped overlapping -- `GEN3 EMBER` used to be drawn
+over the word `THEME`, two strings sharing eight pixels of height -- and the
+value is clipped to what the label leaves, with a test that measures both
+widths.
+
 ## 0.10.0 — the box's chooser, here, and the scene actually visible
 
 0.9.0 put SCENE and HAND in a panel and let you step them there, which was

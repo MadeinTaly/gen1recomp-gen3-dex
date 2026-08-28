@@ -996,13 +996,13 @@ do
         { id = "SKY", pattern = "SKY",
           palette = { { 240, 250, 255 }, { 186, 224, 248 },
                       { 120, 178, 226 }, { 50, 96, 150 } } },
-        { id = "NIGHT", pattern = "NIGHT",
+        { id = "VOLCANO", pattern = "VOLCANO",
           palette = { { 30, 30, 40 }, { 70, 70, 92 },
                       { 140, 140, 168 }, { 226, 226, 240 } } },
       },
       wallpaperArt = art or {
         SKY = { { by = "GEN3 BOX" }, { by = "DUSTDFG" } },
-        NIGHT = { { by = "GEN3 BOX" } },
+        VOLCANO = { { by = "GEN3 BOX" } },
       },
       paintWallpaper = function(paper, w, h, style, tick)
         recorder[#recorder + 1] = { id = paper and paper.id, w = w, h = h,
@@ -1038,7 +1038,7 @@ do
   -- a HAND past the end of a scene's list is a player who set 7 and then
   -- chose a scene with one hand: clamp, do not draw nothing
   do
-    saveOf().scene, saveOf().hand = "NIGHT", 7
+    saveOf().scene, saveOf().hand = "VOLCANO", 7
     local painted = {}
     local s = factory.new(fakeGame(3, 0))
     s.boxHandle = function() return fakeBox(painted) end
@@ -1121,6 +1121,47 @@ do
     painted = {}
     s:draw()
     T.eq(painted[1] and painted[1].id, chosen, "e tiene quella scelta")
+  end
+
+  -- ------- il Pokedex sta in piedi da solo
+  --
+  -- Due mod che stanno in piedi da sole sono due mod; una che diventa bianca
+  -- senza l'altra e' meta' di una. Le scene qui sotto sono disegnate in
+  -- questo file, con la sua arte: quelle della mod delle box, se c'e', si
+  -- aggiungono in coda.
+  do
+    -- un save che non ha mai scelto: e' il caso di chi installa solo questa
+    saveOf().scene, saveOf().hand = nil, nil
+    local s = factory.new(fakeGame(3, 0))
+    s.boxHandle = function() return nil end
+    local scenes = s.sceneList()
+    T.check(#scenes >= 6,
+      "senza la mod delle box il Pokedex ha comunque le sue scene")
+    T.eq(s.sceneTrouble(), nil, "e non si lamenta di niente")
+    T.eq(s.handsFor(scenes[1])[1].by, "GEN3 DEX",
+      "e la mano di una scena sua e' questa mod")
+
+    -- e le disegna davvero: qualcosa finisce sullo schermo
+    local drew = 0
+    local G = love.graphics
+    local realRect = G.rectangle
+    G.rectangle = function() drew = drew + 1 end
+    saveOf().scene = scenes[1]
+    s:draw()
+    G.rectangle = realRect
+    T.check(drew > 20, "e disegnandola riempie lo schermo, non lo lascia bianco")
+
+    -- con la mod delle box installata, le sue si aggiungono
+    local painted = {}
+    s.boxHandle = function() return fakeBox(painted) end
+    local both = s.sceneList()
+    T.check(#both > #scenes, "con la mod delle box le scene diventano di piu'")
+    local hasOwn, hasBorrowed = false, false
+    for _, id in ipairs(both) do
+      if id == scenes[1] then hasOwn = true end
+      if id == "SKY" then hasBorrowed = true end
+    end
+    T.check(hasOwn and hasBorrowed, "e le due serie convivono nella stessa lista")
   end
 
   -- ------- le due colonne del pannello non si toccano

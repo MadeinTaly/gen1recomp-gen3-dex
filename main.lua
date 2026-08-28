@@ -1022,6 +1022,164 @@ return function(mod)
       love.graphics.rectangle("fill", x1, y1 - arm + t, t, arm)
     end
 
+    -- ------- this mod's OWN scenes
+    --
+    -- The Pokedex does not depend on the box mod, and must not: two mods
+    -- that each stand alone are two mods, and one that goes blank without
+    -- the other is half of one. These six are drawn here, in this file,
+    -- with this mod's own art -- no files, no imports, nothing borrowed.
+    --
+    -- If the box mod happens to be installed its ninety-one scenes are
+    -- offered as well, appended to this list. That is the right shape for a
+    -- cross-mod seam: better together, whole apart.
+    local function tone(c, a)
+      love.graphics.setColor(c[1] / 255, c[2] / 255, c[3] / 255, a or 1)
+    end
+
+    local function hash(i)
+      return (i * 2654435761) % 4294967296
+    end
+
+    -- A ridge drawn column by column from two sines and a wobble. Triangles
+    -- give a zigzag and a single sine gives a hump; this gives a horizon.
+    local function ridge(w, h, baseY, amp, seed, drift)
+      for x = 0, w, 2 do
+        local hx = hash(x + seed)
+        local y = baseY
+          - math.floor(amp * math.sin((x + drift) / 37))
+          - math.floor(amp * 0.45 * math.sin((x + drift) / 11))
+          + (math.floor(hx / 65536) % 5) - 2
+        if y < h then love.graphics.rectangle("fill", x, y, 2, h - y) end
+      end
+    end
+
+    local OWN = {
+      { id = "DAWN", palette = { { 254, 238, 226 }, { 246, 200, 176 },
+                                 { 196, 140, 150 }, { 84, 62, 92 } },
+        draw = function(w, h, t, pal)
+          for i = 0, 5 do
+            tone(pal[1], 1 - i * 0.07)
+            love.graphics.rectangle("fill", 0, math.floor(h * i / 6), w, h / 6 + 1)
+          end
+          tone(pal[2], 0.9)
+          love.graphics.circle("fill", math.floor(w * 0.72), math.floor(h * 0.30), 14)
+          for rank = 0, 2 do
+            tone(pal[2 + math.min(1, rank)], 0.5 + rank * 0.2)
+            ridge(w, h, math.floor(h * (0.62 + rank * 0.11)), 5 + rank * 3,
+                  rank * 29, t * (0.02 + rank * 0.01))
+          end
+        end },
+
+      { id = "SEA", palette = { { 232, 246, 252 }, { 168, 214, 236 },
+                                { 84, 150, 196 }, { 26, 64, 104 } },
+        draw = function(w, h, t, pal)
+          tone(pal[1], 1)
+          love.graphics.rectangle("fill", 0, 0, w, h)
+          for i = 0, 3 do
+            tone(pal[2], 0.35 + i * 0.1)
+            local y = math.floor(h * (0.25 + i * 0.18))
+            for x = -8, w + 8, 8 do
+              local wy = y + math.floor(math.sin((x + t * 0.4 + i * 13) / 15) * 2) * 2
+              love.graphics.rectangle("fill", x, wy, 6, 2)
+            end
+          end
+          -- weed along the floor, leaning with the current
+          for i = 0, 13 do
+            local x = (math.floor(hash(i) / 65536) % w)
+            local tall = 10 + (i % 5) * 4
+            local lean = math.floor(math.sin((t + i * 31) / 40) * 3)
+            tone(pal[3], 0.7)
+            for k = 0, tall do
+              love.graphics.rectangle("fill",
+                x + math.floor(lean * k / tall), h - k, 2, 1)
+            end
+          end
+        end },
+
+      { id = "FOREST", palette = { { 238, 248, 232 }, { 176, 214, 154 },
+                                   { 88, 148, 88 }, { 34, 68, 44 } },
+        draw = function(w, h, t, pal)
+          tone(pal[1], 1)
+          love.graphics.rectangle("fill", 0, 0, w, h)
+          for rank = 0, 2 do
+            tone(pal[2 + math.min(1, rank)], 0.55 + rank * 0.2)
+            ridge(w, h, math.floor(h * (0.52 + rank * 0.14)), 6 + rank * 4,
+                  rank * 41 + 7, t * (0.015 + rank * 0.012))
+          end
+          -- leaves coming down, three depths
+          for i = 0, 17 do
+            local speed = 0.1 + (i % 3) * 0.06
+            local y = ((t * speed + i * 19) % (h + 8)) - 4
+            local x = (math.floor(hash(i + 99) / 65536) % w)
+              + math.floor(math.sin((t + i * 27) / 34) * 5)
+            tone(pal[3], 0.6)
+            love.graphics.rectangle("fill", x % w, y, 2, 2)
+          end
+        end },
+
+      { id = "NIGHT", palette = { { 26, 28, 44 }, { 58, 62, 96 },
+                                  { 128, 134, 178 }, { 232, 234, 248 } },
+        draw = function(w, h, t, pal)
+          tone(pal[1], 1)
+          love.graphics.rectangle("fill", 0, 0, w, h)
+          for i = 0, 47 do
+            local hx = hash(i + 7)
+            local x, y = math.floor(hx / 65536) % w, math.floor(hx / 13) % h
+            tone(pal[4], 0.2 + 0.5 * math.sin((t + i * 51) / 90))
+            love.graphics.rectangle("fill", x, y, 1, 1)
+          end
+          tone(pal[3], 0.9)
+          love.graphics.circle("fill", math.floor(w * 0.78), 26, 11)
+          tone(pal[1], 1)
+          love.graphics.circle("fill", math.floor(w * 0.78) + 5, 22, 11)
+          tone(pal[2], 1)
+          ridge(w, h, math.floor(h * 0.84), 7, 13, t * 0.01)
+        end },
+
+      { id = "EMBER", palette = { { 32, 22, 26 }, { 86, 40, 40 },
+                                 { 206, 96, 44 }, { 250, 208, 140 } },
+        draw = function(w, h, t, pal)
+          tone(pal[1], 1)
+          love.graphics.rectangle("fill", 0, 0, w, h)
+          for i = 0, 4 do
+            tone(pal[2], 0.2 + i * 0.12)
+            love.graphics.rectangle("fill", 0, h - (i + 1) * 8, w, 8)
+          end
+          tone(pal[2], 1)
+          ridge(w, h, math.floor(h * 0.80), 9, 21, t * 0.008)
+          tone(pal[3], 1)
+          love.graphics.rectangle("fill", 0, math.floor(h * 0.93), w, h)
+          for i = 0, 15 do
+            local span = h
+            local rise = (t * (0.12 + (i % 4) * 0.05) + i * 23) % span
+            local x = (math.floor(hash(i + 3) / 65536) % w)
+              + math.floor(math.sin((t + i * 31) / 28) * 5)
+            tone(pal[4], 0.15 + 0.6 * (1 - rise / span))
+            love.graphics.rectangle("fill", x % w, h - rise, 1, 1)
+          end
+        end },
+
+      { id = "PAPER", palette = { { 246, 244, 236 }, { 226, 222, 206 },
+                                  { 196, 190, 168 }, { 96, 92, 78 } },
+        draw = function(w, h, t, pal)
+          tone(pal[1], 1)
+          love.graphics.rectangle("fill", 0, 0, w, h)
+          tone(pal[2], 0.9)
+          for y = 8, h, 12 do love.graphics.rectangle("fill", 0, y, w, 1) end
+          tone(pal[3], 0.35)
+          for x = 12, w, 12 do love.graphics.rectangle("fill", x, 0, 1, h) end
+          -- a rule down the margin, and a slow shadow across the sheet
+          tone(pal[3], 0.7)
+          love.graphics.rectangle("fill", 18, 0, 1, h)
+          local sx = ((t * 0.05) % (w + 60)) - 30
+          tone(pal[2], 0.5)
+          love.graphics.rectangle("fill", sx, 0, 24, h)
+        end },
+    }
+
+    local OWN_BY_ID = {}
+    for _, sc in ipairs(OWN) do OWN_BY_ID[sc.id] = sc end
+
     -- ------- what is behind the list
     --
     -- The screen used to be a white sheet, which is what a Game Boy list is
@@ -1089,17 +1247,28 @@ return function(mod)
     -- The scenes the box mod offers, in its own order, minus the two that
     -- are not places: PLAIN is the absence of a wallpaper and FAVOURITE is a
     -- pointer to one of the others, and neither means anything here.
+    -- This mod's own scenes first, then the box mod's if it is installed and
+    -- new enough to paint. Own first on purpose: what this mod can do by
+    -- itself is what a player sees before they are asked to install
+    -- anything, and the borrowed ones are a bonus rather than the point.
     local function sceneList()
+      local out = {}
+      for _, sc in ipairs(OWN) do out[#out + 1] = sc.id end
       local handle = self.boxHandle()
       local exports = handle and handle.exports
-      local out = {}
-      for _, w in ipairs((exports and exports.wallpapers) or {}) do
-        if w.id ~= "PLAIN" and w.id ~= "FAVE" then out[#out + 1] = w.id end
+      if exports and exports.paintWallpaper then
+        for _, w in ipairs(exports.wallpapers or {}) do
+          if w.id ~= "PLAIN" and w.id ~= "FAVE" and not OWN_BY_ID[w.id] then
+            out[#out + 1] = w.id
+          end
+        end
       end
       return out
     end
 
     local function handsFor(id)
+      -- a scene drawn here has one hand, and it is this mod
+      if OWN_BY_ID[id] then return { { by = "GEN3 DEX" } } end
       local handle = self.boxHandle()
       local exports = handle and handle.exports
       local list = ((exports and exports.wallpaperArt) or {})[id]
@@ -1117,6 +1286,10 @@ return function(mod)
     --
     -- So the reason is a string the screen can show, not a nil.
     function self.sceneTrouble()
+      -- a scene of this mod's own never has trouble: that is the point of
+      -- having them
+      local id = sceneChoice()
+      if id == nil or OWN_BY_ID[id] then return nil end
       local handle = self.boxHandle()
       if not handle then return "NEEDS GEN3 BOX" end
       local exports = handle.exports
@@ -1239,6 +1412,17 @@ return function(mod)
     self.sceneList = sceneList
 
     local function drawScene(L)
+      local id = sceneChoice()
+      local own = OWN_BY_ID[id or ""]
+      if not own and not id then own = OWN[1] end
+      if own then
+        local ok = pcall(own.draw, L.w, L.h, self.sceneTick, own.palette)
+        if ok then
+          self.sceneVeil = veilFor({ palette = own.palette })
+          return true
+        end
+        return false
+      end
       local paper, style, paint = scenePaper()
       if not paint then return false end
       local ok = pcall(paint, paper, L.w, L.h, style, self.sceneTick)

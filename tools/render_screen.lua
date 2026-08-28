@@ -123,7 +123,11 @@ local Data = require("src.core.Data")
 Data:load()
 -- both mods on ONE loader: that is what lets the Pokedex find the box mod
 -- through mod.find, which is the whole thing being looked at
-local run = T.sdk.loadMods({ "mods/gen3_box", "mods/gen3_dex" }, { data = Data })
+-- SOLO=1 carica il Pokedex da solo: e' cosi' che si guarda se sta in piedi
+-- senza la mod delle box
+local paths = (os.getenv("SOLO") == "1") and { "mods/gen3_dex" }
+  or { "mods/gen3_box", "mods/gen3_dex" }
+local run = T.sdk.loadMods(paths, { data = Data })
 assert(#run.errors == 0, tostring(run.errors[1]))
 
 local store = run.loader.modOptions.gen3_dex or {}
