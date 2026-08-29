@@ -103,7 +103,11 @@ return function(mod)
     -- FULL SCREEN takes the device instead of a Game Boy screen and spends
     -- the room on MORE ROWS: the same 28-pixel cells, as many rows as fit.
     -- The box mod does the same thing with whole boxes.
-    { key = "fullscreen", label = "FULL SCREEN", type = "toggle", default = false },
+    -- WIP in the label, as in the box mod: the grid fills the screen and
+    -- the cursor moves through it, but this shape has not been lived in
+    -- long enough to call finished.
+    { key = "fullscreen", label = "FULL SCREEN (WIP)", type = "toggle",
+      default = false },
     { key = "backdrop", label = "BACKDROP", type = "choice", default = "scene",
       choices = {
         { "SCENE", "scene" },
@@ -202,22 +206,15 @@ return function(mod)
     -- cells: on a phone love.graphics.getDimensions reports LOGICAL units,
     -- so a 1080-wide screen reports about 405, and that search settled on a
     -- 160-wide canvas -- five columns, a Pokedex that looked zoomed in.
-    -- Try every whole scale from ONE up and keep whichever fits the most
-    -- cells, preferring the larger scale on a tie. Starting at 1 is the
-    -- part that matters: a phone reports about 405x900, where scale 1 gives
-    -- a 400x576 canvas and thirteen columns, and scale 3 gives 160x300 and
-    -- five -- which is what shipped and looked zoomed in rather than opened
-    -- up.
-    local best, bestW, bestH = -1, MIN_W, MIN_H
-    for scale = 1, 8 do
-      local w = math.max(MIN_W, math.min(MAX_W, math.floor(ww / scale)))
-      local h = math.max(MIN_H, math.min(MAX_H, math.floor(wh / scale)))
-      w, h = w - w % 8, h - h % 8
-      local cols = math.max(3, math.floor((w - 16) / 28))
-      local rows = math.max(2, math.floor((h - 24 - 26) / 28))
-      if cols * rows >= best then best, bestW, bestH = cols * rows, w, h end
-    end
-    local w, h = bestW, bestH
+    -- The canvas takes the SHAPE OF THE SCREEN and the screen is filled:
+    -- divide the window by whichever cap it busts by most, so the result
+    -- has the window's proportions and is as large as the engine accepts.
+    -- The scale that follows is fractional, which is why wantsFillScale is
+    -- set below -- whole scales left black bands over a third of a phone.
+    local k = math.max(ww / MAX_W, wh / MAX_H, 1)
+    local w = math.max(MIN_W, math.min(MAX_W, math.floor(ww / k)))
+    local h = math.max(MIN_H, math.min(MAX_H, math.floor(wh / k)))
+    w, h = w - w % 8, h - h % 8
     local cols = math.max(3, math.floor((w - 16) / 28))
     local rows = math.max(2, math.floor((h - 24 - 26) / 28))
     return {

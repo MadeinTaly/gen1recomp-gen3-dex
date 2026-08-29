@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.14.0 — FULL SCREEN (work in progress)
+
+**`FULL SCREEN (WIP)`**, off by default: the surface takes the shape of the
+device and the room goes on **more rows** at the same cell size. Everything
+else in this release is the stable mod.
+
+The canvas is the window's own proportions, clamped to the 640x576 the
+engine accepts, and `wantsFillScale` asks the renderer to blit it at a
+fractional scale so it fills the screen rather than sitting in a letterbox.
+Two earlier passes chased whole-number scales for square pixels and left
+black bands over a third of the height; one of them also searched only
+scales 8 down to 3 and settled on a 160-wide canvas, because
+`getDimensions` reports logical units and a 1080-wide phone reports 405.
+
+On Gold it goes through `drawsWidescreen` / `drawWidescreen`, the pair this
+screen already used for BIG.
+
 ## 0.13.1 — the same scale bug, the same fix
 
 FULL SCREEN chose the smallest canvas it could instead of the largest. The
