@@ -1298,7 +1298,8 @@ do
     if L then
       T.check(L.full, "col pieno schermo la disposizione e' quella piena")
       T.check(L.rows > 4, "e ci stanno piu' righe delle quattro del Game Boy")
-      T.check(L.cell == 28, "con le celle della stessa misura di sempre")
+      T.eq(L.cell, 56,
+        "con la cella grande: a 28 la figura del Pokemon si disegna dimezzata")
     end
   end)
 

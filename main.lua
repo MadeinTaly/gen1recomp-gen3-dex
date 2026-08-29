@@ -103,10 +103,11 @@ return function(mod)
     -- FULL SCREEN takes the device instead of a Game Boy screen and spends
     -- the room on MORE ROWS: the same 28-pixel cells, as many rows as fit.
     -- The box mod does the same thing with whole boxes.
-    -- WIP in the label, as in the box mod: the grid fills the screen and
-    -- the cursor moves through it, but this shape has not been lived in
-    -- long enough to call finished.
-    { key = "fullscreen", label = "FULL SCREEN (WIP)", type = "toggle",
+    -- No WIP on the label any more: this screen is a list, and a list that
+    -- fills the screen is the whole feature. The paging, the cursor and the
+    -- chooser all read their shape from the layout rather than from the
+    -- Game Boy constants, which is what made it hold at any size.
+    { key = "fullscreen", label = "FULL SCREEN", type = "toggle",
       default = false },
     { key = "backdrop", label = "BACKDROP", type = "choice", default = "scene",
       choices = {
@@ -184,6 +185,8 @@ return function(mod)
   -- possible -- the largest scale gives the fewest rows, which is the
   -- opposite of the point.
   local MIN_W, MIN_H, MAX_W, MAX_H = 160, 144, 640, 576
+  -- the size a battle picture is: at 28 it is drawn halved
+  local FULL_CELL = 56
 
   local function fullOn()
     local ok, value = pcall(function() return mod.options:get("fullscreen") end)
@@ -214,12 +217,19 @@ return function(mod)
     local k = math.max(ww / MAX_W, wh / MAX_H, 1)
     local w = math.max(MIN_W, math.min(MAX_W, math.floor(ww / k)))
     local h = math.max(MIN_H, math.min(MAX_H, math.floor(wh / k)))
+    -- room for at least three big cells across, even on a narrow phone
+    w = math.max(w, math.min(MAX_W, 3 * FULL_CELL + 16))
     w, h = w - w % 8, h - h % 8
-    local cols = math.max(3, math.floor((w - 16) / 28))
-    local rows = math.max(2, math.floor((h - 24 - 26) / 28))
+    -- BIG cells: 56 is the size a battle picture actually is, and at 28 it
+    -- is drawn halved. The room full screen buys goes on the Pokemon being
+    -- whole first, and on showing more of them second.
+    local cols = math.max(3, math.floor((w - 16) / FULL_CELL))
+    local rows = math.max(2, math.floor((h - 24 - 26) / FULL_CELL))
     return {
-      cell = 28, w = w, h = h, full = true, cols = cols, rows = rows,
-      gridX = math.floor((w - cols * 28) / 2), gridY = 24,
+      cell = FULL_CELL, w = w, h = h, full = true, cols = cols, rows = rows,
+      gridX = math.floor((w - cols * FULL_CELL) / 2)
+        - (math.floor((w - cols * FULL_CELL) / 2) % 8),
+      gridY = 24,
     }
   end
 

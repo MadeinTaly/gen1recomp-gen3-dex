@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.15.0 — FULL SCREEN, finished, with the sprites drawn whole
+
+**The cell in full screen is 56, not 28**, for the same reason as the box
+mod: that is the size a battle picture is, and at 28 it is halved. Four
+columns by nine rows on a phone -- thirty-six entries you can actually look
+at, rather than two hundred you cannot.
+
+The WIP comes off here too. This screen is a list, and a list that fills the
+screen is the whole feature: the paging, the cursor and the chooser all read
+their shape from the layout rather than from the Game Boy constants, so the
+grid holds at any size the engine will take.
+
 ## 0.14.0 — FULL SCREEN (work in progress)
 
 **`FULL SCREEN (WIP)`**, off by default: the surface takes the shape of the
