@@ -100,6 +100,10 @@ return function(mod)
     -- backdrop would mean recolouring the type, and type that changes
     -- colour with a background setting is how a screen ends up unreadable
     -- in one combination nobody tested.
+    -- FULL SCREEN takes the device instead of a Game Boy screen and spends
+    -- the room on MORE ROWS: the same 28-pixel cells, as many rows as fit.
+    -- The box mod does the same thing with whole boxes.
+    { key = "fullscreen", label = "FULL SCREEN", type = "toggle", default = false },
     { key = "backdrop", label = "BACKDROP", type = "choice", default = "scene",
       choices = {
         { "SCENE", "scene" },
@@ -167,7 +171,50 @@ return function(mod)
   end
 
   -- What the player asked for.
+  -- ------- FULL SCREEN
+  --
+  -- Same arithmetic as the box mod's: the engine takes a surface between
+  -- 160x144 and 640x576 through uiSize() (and on Gold through
+  -- drawWidescreen, which this screen already had for BIG). The scale is
+  -- chosen by counting what fits rather than by making pixels as large as
+  -- possible -- the largest scale gives the fewest rows, which is the
+  -- opposite of the point.
+  local MIN_W, MIN_H, MAX_W, MAX_H = 160, 144, 640, 576
+
+  local function fullOn()
+    local ok, value = pcall(function() return mod.options:get("fullscreen") end)
+    return ok and value == true
+  end
+
+  local function windowSize()
+    local ok, w, h = pcall(function() return love.graphics.getDimensions() end)
+    if ok and type(w) == "number" and w > 0 and h > 0 then return w, h end
+    return MIN_W, MIN_H
+  end
+
+  local function fullLayout()
+    local ww, wh = windowSize()
+    local best, bestW, bestH = -1, MIN_W, MIN_H
+    for scale = 8, 3, -1 do
+      local w = math.max(MIN_W, math.min(MAX_W, math.floor(ww / scale)))
+      local h = math.max(MIN_H, math.min(MAX_H, math.floor(wh / scale)))
+      w, h = w - w % 8, h - h % 8
+      -- 28-pixel cells, a header row and a two-line footer
+      local cols = math.max(3, math.floor((w - 16) / 28))
+      local rows = math.max(2, math.floor((h - 24 - 26) / 28))
+      if cols * rows > best then best, bestW, bestH = cols * rows, w, h end
+    end
+    local w, h = bestW, bestH
+    local cols = math.max(3, math.floor((w - 16) / 28))
+    local rows = math.max(2, math.floor((h - 24 - 26) / 28))
+    return {
+      cell = 28, w = w, h = h, full = true, cols = cols, rows = rows,
+      gridX = math.floor((w - cols * 28) / 2), gridY = 24,
+    }
+  end
+
   local function wanted()
+    if fullOn() then return fullLayout() end
     local ok, value = pcall(function() return mod.options:get("grid") end)
     return LAYOUT[(ok and value) or "big"] or LAYOUT.big
   end
@@ -304,14 +351,28 @@ return function(mod)
     rebuild()
     self.rebuild = rebuild
 
-    local function perPage() return COLS * ROWS end
+    -- COLS and ROWS are the Game Boy grid; a full-screen surface says how
+    -- many of each it actually has room for.
+    local function gridCols()
+      local L = layout(game)
+      return L.cols or COLS
+    end
+    local function gridRows()
+      local L = layout(game)
+      return L.rows or ROWS
+    end
+    local function perPage() return gridCols() * gridRows() end
+
+    -- exposed so the suite can assert the full-screen arithmetic -- how
+    -- many rows fit in which window -- without drawing anything
+    self.layout = function() return layout(game) end
     local function pageStart()
       return math.floor(self.index / perPage()) * perPage()
     end
 
     local function cellRect(slot)
       local L = layout(game)
-      local c, r = slot % COLS, math.floor(slot / COLS)
+      local c, r = slot % gridCols(), math.floor(slot / gridCols())
       return L.gridX + c * L.cell, L.gridY + r * L.cell
     end
     self.cellRect = cellRect
@@ -732,7 +793,8 @@ return function(mod)
     -- answers false here, on both generations, so it never takes a step
     -- this file did not already take.
     function self:drawsWidescreen()
-      return isGen2(game) and layout(game) == LAYOUT.big
+      local L = layout(game)
+      return isGen2(game) and (L == LAYOUT.big or L.full == true)
     end
 
     -- Only ever called for Gen 2 BIG (see `drawsWidescreen` above), and only
@@ -967,9 +1029,9 @@ return function(mod)
       elseif input:wasPressed("right") then
         self.index = (self.index + 1) % n
       elseif input:wasPressed("up") then
-        self.index = (self.index - COLS) % n
+        self.index = (self.index - gridCols()) % n
       elseif input:wasPressed("down") then
-        self.index = (self.index + COLS) % n
+        self.index = (self.index + gridCols()) % n
       elseif input:wasPressed("start") then
         -- page jump, the way the vanilla list uses left/right
         self.index = (self.index + per) % n

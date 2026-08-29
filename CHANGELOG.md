@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.13.0 — FULL SCREEN: more rows, same cells
+
+The same option the box mod grew, spent the way this screen wants it: the
+surface follows the device and the room goes on **more rows**. Same
+28-pixel cells, as many columns and rows as fit — on a phone that is a
+dozen columns and eighteen rows instead of five by four.
+
+The scale is chosen by counting what fits rather than by making pixels as
+large as possible: the largest whole scale gives the FEWEST rows, which is
+the opposite of the point. Whole scales only, and whole tiles, for the same
+two reasons as ever — uneven pixels, and palette zones that start mid-tile.
+
+On Gold it goes through `drawsWidescreen` / `drawWidescreen`, the pair this
+screen already used for BIG. One condition, not a second implementation.
+
 ## 0.12.0 — eight tiles, five hands, and the box's scenes no longer hidden
 
 **Thirteen places and fourteen backdrops with nothing else installed.** Six

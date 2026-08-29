@@ -1251,4 +1251,58 @@ do
   store.backdrop = "soft"
 end
 
+-- ------- FULL SCREEN
+--
+-- The surface follows the device and the room goes on MORE ROWS. Same
+-- arithmetic as the box mod's, and the same limits: what the engine will
+-- accept, and whole tiles so a palette zone never starts mid-tile.
+do
+  store.fullscreen = true
+  local G = love.graphics
+  local realDim = G.getDimensions
+  local unpack = table.unpack or unpack
+  local function withWindow(w, h, fn)
+    G.getDimensions = function() return w, h end
+    local out = { fn() }
+    G.getDimensions = realDim
+    return unpack(out)
+  end
+
+  for _, size in ipairs({ { 1080, 2160 }, { 2400, 1080 }, { 1600, 1200 },
+                          { 320, 240 } }) do
+    withWindow(size[1], size[2], function()
+      local s = factory.new(fakeGame(3, 0))
+      local w, h = s:uiSize()
+      T.check(w >= 160 and w <= 640 and h >= 144 and h <= 576,
+        string.format("finestra %dx%d: superficie accettabile (%dx%d)",
+          size[1], size[2], w, h))
+      T.check(w % 8 == 0 and h % 8 == 0, "e in tessere intere")
+    end)
+  end
+
+  -- piu' righe, non righe piu' grandi.
+  --
+  -- layout() ricade su CLASSIC finche' la superficie del renderer non e'
+  -- davvero grande quanto quella chiesta -- e' la guardia che impedisce di
+  -- disegnare cinque colonne su una tela da 160 quando qualcosa e' stato
+  -- spinto sopra questo schermo -- quindi il test la simula, come fa il
+  -- gioco dopo aver onorato uiSize().
+  withWindow(1080, 2160, function()
+    local Renderer = require("src.render.Renderer")
+    local s = factory.new(fakeGame(3, 0))
+    local w, h = s:uiSize()
+    local prevW, prevH = Renderer.uiWidth, Renderer.uiHeight
+    Renderer.uiWidth, Renderer.uiHeight = w, h
+    local L = s.layout and s.layout() or nil
+    Renderer.uiWidth, Renderer.uiHeight = prevW, prevH
+    if L then
+      T.check(L.full, "col pieno schermo la disposizione e' quella piena")
+      T.check(L.rows > 4, "e ci stanno piu' righe delle quattro del Game Boy")
+      T.check(L.cell == 28, "con le celle della stessa misura di sempre")
+    end
+  end)
+
+  store.fullscreen = false
+end
+
 T.finish("gen3_dex")

@@ -47,7 +47,12 @@ function G.push() stack[#stack + 1] = sc end
 function G.pop() sc = table.remove(stack) or 1 end
 function G.scale(s) sc = sc * (s or 1) end
 function G.setColor(r, g, b, a) cur = { r or 1, g or 1, b or 1, a or 1 } end
-function G.getDimensions() return W, H end
+-- La FINESTRA non e' la tela: il pieno schermo calcola la superficie
+-- dividendo la finestra del dispositivo, quindi qui si dichiarano
+-- separatamente (WINW/WINH, per default tre volte la tela).
+local WINW = tonumber(os.getenv("WINW") or tostring(W * 3))
+local WINH = tonumber(os.getenv("WINH") or tostring(H * 3))
+function G.getDimensions() return WINW, WINH end
 function G.clear(r, g, b)
   cur = { r or 1, g or 1, b or 1, 1 }
   for y = 0, H - 1 do for x = 0, W - 1 do px(x, y) end end
@@ -134,6 +139,13 @@ local store = run.loader.modOptions.gen3_dex or {}
 run.loader.modOptions.gen3_dex = store
 run.loader.modOptions.gen3_box = run.loader.modOptions.gen3_box or {}
 store.grid = os.getenv("GRID") or "classic"
+store.fullscreen = os.getenv("FULL") == "1"
+if store.fullscreen then
+  -- il gioco onora uiSize() e POI disegna: qui si fa lo stesso a mano,
+  -- altrimenti layout() ricade su CLASSIC e si guarda la cosa sbagliata
+  local Renderer = require("src.render.Renderer")
+  Renderer.uiWidth, Renderer.uiHeight = W, H
+end
 store.backdrop = "scene"
 
 -- which scene lives in the SAVE now, not in an option
