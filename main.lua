@@ -188,6 +188,13 @@ return function(mod)
   -- the size a battle picture is: at 28 it is drawn halved
   local FULL_CELL = 56
 
+  -- ...and 28 when GRID says CLASSIC: same question, same two answers, on
+  -- any surface. See fullLayout below.
+  local function fullCell()
+    local ok, value = pcall(function() return mod.options:get("grid") end)
+    return (ok and value == "classic") and 28 or FULL_CELL
+  end
+
   local function fullOn()
     local ok, value = pcall(function() return mod.options:get("fullscreen") end)
     return ok and value == true
@@ -217,18 +224,25 @@ return function(mod)
     local k = math.max(ww / MAX_W, wh / MAX_H, 1)
     local w = math.max(MIN_W, math.min(MAX_W, math.floor(ww / k)))
     local h = math.max(MIN_H, math.min(MAX_H, math.floor(wh / k)))
-    -- room for at least three big cells across, even on a narrow phone
-    w = math.max(w, math.min(MAX_W, 3 * FULL_CELL + 16))
-    w, h = w - w % 8, h - h % 8
     -- BIG cells: 56 is the size a battle picture actually is, and at 28 it
     -- is drawn halved. The room full screen buys goes on the Pokemon being
     -- whole first, and on showing more of them second.
-    local cols = math.max(3, math.floor((w - 16) / FULL_CELL))
-    local rows = math.max(2, math.floor((h - 24 - 26) / FULL_CELL))
+    --
+    -- ...unless GRID says CLASSIC, which is the same setting asking the
+    -- same question -- how big is a cell -- and it has an answer on any
+    -- surface. Full screen used to override it outright, and a setting that
+    -- silently does nothing reads as a broken one; the box mod was reported
+    -- for exactly that and this is the same code with the same fix.
+    local cell = fullCell()
+    -- room for at least three cells across, even on a narrow phone
+    w = math.max(w, math.min(MAX_W, 3 * cell + 16))
+    w, h = w - w % 8, h - h % 8
+    local cols = math.max(3, math.floor((w - 16) / cell))
+    local rows = math.max(2, math.floor((h - 24 - 26) / cell))
     return {
-      cell = FULL_CELL, w = w, h = h, full = true, cols = cols, rows = rows,
-      gridX = math.floor((w - cols * FULL_CELL) / 2)
-        - (math.floor((w - cols * FULL_CELL) / 2) % 8),
+      cell = cell, w = w, h = h, full = true, cols = cols, rows = rows,
+      gridX = math.floor((w - cols * cell) / 2)
+        - (math.floor((w - cols * cell) / 2) % 8),
       gridY = 24,
     }
   end
@@ -341,6 +355,13 @@ return function(mod)
 
   -- ------- the screen
 
+  -- How faint a SEEN-but-not-caught species is drawn. It was 0.45, which
+  -- over a scene reads as "caught, in slightly paler ink" -- and the one
+  -- thing this grid has to say at a glance is which half of the dex a cell
+  -- belongs to. A third is faint enough to be a ghost and solid enough to
+  -- still be recognisably that Pokemon.
+  local DIM_SEEN = 0.3
+
   local function newDex(game)
     local PaletteFX = require("src.render.PaletteFX")
 
@@ -410,11 +431,93 @@ return function(mod)
     end
     self.picScale = picScale
 
+    -- ------- the picture, through the seam a sprite pack shadows
+    --
+    -- This used to load `def.spriteFront` straight off the species record,
+    -- which is the ONE path a mod cannot reach. Content registries freeze
+    -- after load, so a pack that swaps Red's art for Crystal's -- or lets
+    -- the player pick a skin mid-session -- cannot patch that field: the
+    -- engine's sanctioned seam is `pokemon.sprite`, raised by
+    -- Sprites.path (src/pokemon/Sprites.lua:24-42), and every battle,
+    -- summary and Hall of Fame pic in the game goes through it. A dex that
+    -- read the record directly was the only screen still showing the
+    -- vanilla sprite while the rest of the game showed the pack's.
+    --
+    -- kind = "dex" tells the hook which screen is asking; trueColor comes
+    -- back true when the replacement is full-colour art, which must NOT be
+    -- put through the shade remap below.
+    local picCache = {}
+    local function picPath(def)
+      local ok, path, trueColor = pcall(function()
+        return require("src.pokemon.Sprites").path(
+          game.data, def.id, "front", { kind = "dex" })
+      end)
+      if ok and type(path) == "string" and path ~= "" then
+        return path, trueColor and true or false
+      end
+      return def.spriteFront, false
+    end
+
     local function picOf(def)
-      if not def.spriteFront then return nil end
-      local ok, img = pcall(Assets.image, def.spriteFront)
-      if ok then return img end
-      return nil
+      local hit = picCache[def.id]
+      if hit ~= nil then
+        if hit == false then return nil end
+        return hit.img, hit.trueColor
+      end
+      local path, trueColor = picPath(def)
+      if not path then
+        picCache[def.id] = false
+        return nil
+      end
+      local ok, img = pcall(Assets.image, path)
+      if not (ok and img) then
+        picCache[def.id] = false
+        return nil
+      end
+      picCache[def.id] = { img = img, trueColor = trueColor }
+      return img, trueColor
+    end
+    self.picOf = picOf
+
+    -- ------- and the colours travel with the PICTURE, not with a rectangle
+    --
+    -- "lo sfondo bianco dei catturati??? orribile" -- a white card under
+    -- every caught Pokemon and under no other. The picture is innocent: the
+    -- extractor flood-fills the border white to alpha 0 when it rips a front
+    -- pic (ImageWriter.matteColor0, src/import/ImageWriter.lua:108-133), so
+    -- what is behind a Pokemon is nothing at all. Which is why a SEEN
+    -- species showed no card and a caught one did.
+    --
+    -- The card was the palette zone. A zone is a RECTANGLE: the shader maps
+    -- by the red channel, a pale sky is r > 0.83, and shade 0 of a species
+    -- palette is white -- so the scene inside an owned cell was repainted
+    -- white, cell-shaped, while its neighbours kept the picture. One zone
+    -- per owned cell, and the grid ended up wearing a chequerboard.
+    --
+    -- So the zones go (see sgbPalettes) and the same remap is applied to the
+    -- PICTURE instead, which is a shape rather than a rectangle:
+    -- PaletteFX.shader() with the species' four colours, exactly what the
+    -- zone pass would have sent, and it keeps the alpha it is given -- the
+    -- keyed variant next to it does not, and would punch holes through
+    -- every white belly and every eye highlight.
+    --
+    -- No shader (headless, or a driver that refuses one) draws the picture
+    -- plainly: it comes out in DMG greys, which is what a species with no
+    -- palette gets anyway, and nothing crashes.
+    local function paintPic(img, x, y, k, colors, alpha)
+      local g = love.graphics
+      local sh = nil
+      if colors and type(PaletteFX.shader) == "function" then
+        local ok, made = pcall(PaletteFX.shader)
+        if ok and made then
+          local sent = pcall(PaletteFX.sendColors, made, colors)
+          if sent and pcall(g.setShader, made) then sh = made end
+        end
+      end
+      g.setColor(1, 1, 1, alpha or 1)
+      pcall(g.draw, img, x, y, 0, k, k)
+      if sh then pcall(g.setShader) end
+      g.setColor(1, 1, 1, 1)
     end
 
     -- ------- Wilds of Kanto's overworld sprites, CLASSIC only
@@ -740,7 +843,7 @@ return function(mod)
         if not sprite then return false end
         local k = picScale(sprite, cell)
         local w, h = sprite:getWidth() * k, sprite:getHeight() * k
-        if dim then love.graphics.setColor(1, 1, 1, 0.45) end
+        if dim then love.graphics.setColor(1, 1, 1, DIM_SEEN) end
         local ok = pcall(love.graphics.draw, sprite.image, sprite.quad,
           x + (cell - w) / 2, y + (cell - h) / 2, 0, k, k)
         love.graphics.setColor(1, 1, 1, 1)
@@ -763,7 +866,7 @@ return function(mod)
       -- selected = false is what keeps this from touching mon.hp / mon.stats:
       -- the bobbing frame is chosen from the HP bar, and a dex entry is a
       -- species with no HP to read. counter = 0 for the same reason.
-      if dim then love.graphics.setColor(1, 1, 1, 0.45) end
+      if dim then love.graphics.setColor(1, 1, 1, DIM_SEEN) end
       local drew = pcall(PartyMenu.drawIcon, game, { species = def.id },
         x + (cell - 16) / 2, y + (cell - 16) / 2, false, 0)
       love.graphics.setColor(1, 1, 1, 1)
@@ -892,17 +995,30 @@ return function(mod)
       local zones = {
         bare or PaletteFX.zone(PaletteFX.GRAYS, 0, 0, L.w / 8 - 1, L.h / 8 - 1),
       }
-      local tiles = L.cell / 8
-      local start = pageStart()
-      for slot = 0, perPage() - 1 do
-        local e = self.entries[start + slot + 1]
-        if e and e.state == "owned" then
-          local colors = PaletteFX.monPal(game.data, e.def.id)
-          if colors then
-            local x, y = cellRect(slot)
-            local tx, ty = x / 8, y / 8
-            zones[#zones + 1] =
-              PaletteFX.zone(colors, tx, ty, tx + tiles - 1, ty + tiles - 1)
+      -- On a SCENE there are no per-cell zones at all, and that is the fix
+      -- for the white card rather than a saving.
+      --
+      -- A zone is a RECTANGLE. It recolours everything inside the cell, so
+      -- with the picture's background keyed away it would map the scene
+      -- showing through -- pale sky, pale grass, anything light -- onto the
+      -- species' lightest shade, which is white. The card would come back,
+      -- cell-sized instead of picture-sized. So when a scene is drawn the
+      -- colours travel with the PICTURE (paintPic's keyed shader) and this
+      -- list stays one zone long; on the plain white background the zones
+      -- are still how a Pokemon gets its colours, exactly as before.
+      if not onScene then
+        local tiles = L.cell / 8
+        local start = pageStart()
+        for slot = 0, perPage() - 1 do
+          local e = self.entries[start + slot + 1]
+          if e and e.state == "owned" then
+            local colors = PaletteFX.monPal(game.data, e.def.id)
+            if colors then
+              local x, y = cellRect(slot)
+              local tx, ty = x / 8, y / 8
+              zones[#zones + 1] =
+                PaletteFX.zone(colors, tx, ty, tx + tiles - 1, ty + tiles - 1)
+            end
           end
         end
       end
@@ -1766,14 +1882,22 @@ return function(mod)
         if e then
           -- A never-met species stays a blank in EITHER path: e.state is
           -- checked before either picOf or owSprite is even asked.
+          -- la cella, non la TABELLA: in pieno schermo con GRID CLASSIC
+          -- la disposizione e' un'altra tabella con la stessa cella da 28,
+          -- e confrontare le tabelle lasciava quelle celle senza icone --
+          -- cioe' con la figura di battaglia dimezzata, che e' esattamente
+          -- il caso per cui le icone esistono
+          local small = L.cell == LAYOUT.classic.cell
           local drawnOw = false
-          if e.state ~= "unknown" and L == LAYOUT.classic
+          if e.state ~= "unknown" and small
              and opt("ow_sprites", false) then
             local sprite = owSprite(e.def)
             if sprite then
               local k = picScale(sprite, L.cell)
               local w, h = sprite:getWidth() * k, sprite:getHeight() * k
-              if e.state == "seen" then love.graphics.setColor(1, 1, 1, 0.45) end
+              if e.state == "seen" then
+                love.graphics.setColor(1, 1, 1, DIM_SEEN)
+              end
               drawnOw = pcall(love.graphics.draw, sprite.image, sprite.quad,
                 x + (L.cell - w) / 2, y + (L.cell - h) / 2, 0, k, k)
               if not drawnOw then love.graphics.setColor(1, 1, 1, 1) end
@@ -1781,19 +1905,34 @@ return function(mod)
           end
           -- the game's own mini icon, when no follower sprite took the cell
           local drawnIcon = false
-          if not drawnOw and e.state ~= "unknown" and L == LAYOUT.classic then
+          if not drawnOw and e.state ~= "unknown" and small then
             drawnIcon = drawMenuIcon(e.def, x, y, L.cell, e.state == "seen")
           end
           if not drawnOw and not drawnIcon then
-            local img = e.state ~= "unknown" and picOf(e.def) or nil
+            local img, trueColor
+            if e.state ~= "unknown" then img, trueColor = picOf(e.def) end
             if img then
               local k = picScale(img, L.cell)
               local w, h = img:getWidth() * k, img:getHeight() * k
               -- a seen-but-uncaught species is dimmed rather than hidden:
-              -- you met it, you just do not own it
-              if e.state == "seen" then love.graphics.setColor(1, 1, 1, 0.45) end
-              love.graphics.draw(img, x + (L.cell - w) / 2, y + (L.cell - h) / 2,
-                0, k, k)
+              -- you met it, you just do not own it. A THIRD, down from 45%:
+              -- over a scene the old value read as "caught, in paler ink",
+              -- and the two halves of a dex have to be told apart at a
+              -- glance -- that is the whole information the screen carries.
+              local alpha = e.state == "seen" and DIM_SEEN or 1
+              -- Only what the zone pass would have coloured, and only where
+              -- the zones have stood down: an OWNED species on a Gen 1 boot
+              -- over a scene. A seen one was never coloured (no zone was
+              -- ever emitted for it) and stays in its own greys; full-colour
+              -- replacement art is drawn as it is, since a shade remap is
+              -- what ruins that art; and Gold colours its own pictures.
+              local colors = nil
+              if onScene and not trueColor and not isGen2(game)
+                 and e.state == "owned" then
+                colors = PaletteFX.monPal(game.data, e.def.id)
+              end
+              paintPic(img, x + (L.cell - w) / 2, y + (L.cell - h) / 2, k,
+                colors, alpha)
             end
           end
         end

@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.16.0 -- the white card under the caught ones, and the artist's sprites
+
+**The white card is gone.** A caught Pokemon sat on a white rectangle over
+the scene and a seen-only one did not, which was the clue: the picture is
+innocent. A ripped front pic has its border white flood-filled to alpha 0 by
+the extractor, so nothing but the Pokemon is drawn. The card was the palette
+ZONE -- a rectangle whose shade remap reads the red channel, so a pale sky
+lands on shade 0, and shade 0 in a species palette is white.
+
+Over a scene those zones are gone. The species' four colours are sent to the
+PICTURE instead, through the same shader the zone pass uses, and a picture
+is a shape rather than a rectangle -- so the scene between and behind the
+Pokemon is left alone, which is the whole point of having painted it. On the
+plain white background the zones still do the colouring, exactly as before.
+
+**A seen-but-uncaught species is fainter**, a third rather than not-quite-a
+half: the one thing this grid has to say at a glance is which half of the dex
+a cell belongs to.
+
+**The pictures come through the seam a sprite pack shadows.** This screen
+read `spriteFront` off the species record, which is the one path a mod
+cannot reach -- content registries freeze after load. So a pack that swaps
+the art for Crystal's sprites repainted the whole game and not this screen.
+Every picture is resolved through `Sprites.path` now, which raises
+`pokemon.sprite` with `kind = "dex"`, the same seam the battle, the summary
+and the Hall of Fame go through. Full-colour replacement art is drawn as it
+is, with no shade remap.
+
+**GRID means something in full screen**, like the box mod: CLASSIC gives
+28-pixel cells (and far more rows), BIG the 56-pixel cells where a battle
+picture is drawn whole. Those small cells also take the game's own menu
+icons again -- the check compared layout TABLES rather than cell sizes, so
+full screen at 28 was drawing halved battle pictures instead.
+
 ## 0.15.0 — FULL SCREEN, finished, with the sprites drawn whole
 
 **The cell in full screen is 56, not 28**, for the same reason as the box

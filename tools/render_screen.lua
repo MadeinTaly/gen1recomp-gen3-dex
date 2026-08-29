@@ -108,6 +108,88 @@ function G.polygon(mode, ...)
   end
 end
 
+-- ------- the Pokemon themselves, and the shader that keys them
+--
+-- A front pic is a four-shade picture with an OPAQUE lightest shade behind
+-- it, and over a scene that shade is a white card under every caught
+-- Pokemon. The fix draws the picture through PaletteFX.keyedShader, which
+-- maps the four shades to the species' colours and keys shade 0 away in one
+-- pass -- and none of that is visible from a stub that ignores both images
+-- and shaders. So this one does neither.
+--
+-- RAW points at a dump made by the box mod's tool:
+--   python3 mods/gen3_box/tools/check_wallpaper.py <dir of pngs> --raw <out>
+-- Without it the sprites render as nothing, which is what they did before.
+local RAW = os.getenv("RAW")
+
+local function u32(s, i)
+  local a, b, c, d = s:byte(i, i + 3)
+  return ((a * 256 + b) * 256 + c) * 256 + d
+end
+
+local images = {}
+function G.newImage(path)
+  local key = tostring(path)
+  if images[key] ~= nil then return images[key] end
+  local name = key:match("([^/\\]+)%.png$")
+  local f = RAW and name and io.open(RAW .. "/" .. name .. ".rgba", "rb")
+  local img
+  if f then
+    local d = f:read("*a"); f:close()
+    img = { _w = u32(d, 1), _h = u32(d, 5), _d = d,
+            getWidth = function(self) return self._w end,
+            getHeight = function(self) return self._h end }
+  else
+    img = setmetatable({},
+      { __index = function() return function() return 0 end end })
+  end
+  images[key] = img
+  return img
+end
+
+-- the same arithmetic as the real shader, in software: shade by RED
+-- channel, and shade 0 keyed to nothing (src/render/PaletteFX.lua:198-212)
+local shaderOn = nil
+function G.newShader()
+  return { _c = {}, send = function(self, k, v) self._c[k] = v end }
+end
+function G.setShader(sh) shaderOn = sh end
+function G.getShader() return shaderOn end
+
+local function through(r, g, b, a)
+  local sh = shaderOn
+  if not sh then return r, g, b, a end
+  local c = sh._c["c0"] and sh._c or nil
+  if not c then return r, g, b, a end
+  local pick = (r > 0.83 and c.c0) or (r > 0.5 and c.c1)
+    or (r > 0.17 and c.c2) or c.c3
+  local keyed = (r > 0.83 and g > 0.83 and b > 0.83) and 0 or a
+  return pick[1], pick[2], pick[3], keyed
+end
+
+function G.draw(img, x, y, _, sx, sy)
+  if not (img and img._d) then return end
+  sx = sx or 1; sy = sy or sx
+  x, y = (x or 0) * sc, (y or 0) * sc
+  local step = math.max(1, sx * sc)
+  for iy = 0, img._h - 1 do
+    for ix = 0, img._w - 1 do
+      local o = 8 + (iy * img._w + ix) * 4
+      local r, g, b, a = img._d:byte(o + 1) / 255, img._d:byte(o + 2) / 255,
+                         img._d:byte(o + 3) / 255, img._d:byte(o + 4) / 255
+      r, g, b, a = through(r, g, b, a)
+      a = a * (cur[4] or 1)
+      if a > 0 then
+        for py = 0, step - 1 do
+          for pxx = 0, step - 1 do
+            blend(x + ix * step + pxx, y + iy * step + py, r, g, b, a)
+          end
+        end
+      end
+    end
+  end
+end
+
 love.graphics = setmetatable(G, { __index = function() return function() end end })
 
 -- Raw RGB out, converted by tools/rgb_to_png.py. A PNG needs a CRC and a
@@ -164,9 +246,27 @@ local function readPng(path)
   return nil
 end
 
+-- Un dex VUOTO non disegna nessun Pokemon, e i Pokemon sono meta' di quello
+-- che c'e' da guardare: il cartoncino bianco sotto i catturati si vede solo
+-- se qualcuno e' catturato. Cosi': tutte le specie viste, una su due presa.
+-- OWNED=none / all cambia la proporzione.
+local seen, owned = {}, {}
+do
+  local ids = {}
+  for id, def in pairs(Data.pokemon) do
+    if def.dex then ids[#ids + 1] = id end
+  end
+  table.sort(ids, function(a, b) return Data.pokemon[a].dex < Data.pokemon[b].dex end)
+  local mode = os.getenv("OWNED") or "half"
+  for i, id in ipairs(ids) do
+    seen[id] = true
+    if mode == "all" or (mode == "half" and i % 2 == 1) then owned[id] = true end
+  end
+end
+
 local game = {
   data = Data,
-  save = { pokedex = { seen = {}, owned = {} }, party = {} },
+  save = { pokedex = { seen = seen, owned = owned }, party = {} },
   stack = { push = function() end, pop = function() end, top = function() end },
   input = { wasPressed = function() return false end },
 }

@@ -1173,6 +1173,14 @@ do
   -- rimappaggio quando c'e' una scena, e resta GRAYS quando non c'e'.
   do
     local PaletteFX = require("src.render.PaletteFX")
+    -- le zone esistono solo in BIG: in CLASSIC una cella e' tre tessere e
+    -- mezza e sgbPalettes risponde nil, quindi qui si guarda la griglia
+    -- giusta invece di guardare nel vuoto
+    local wasGrid = store.grid
+    store.grid = "big"
+    local Renderer = require("src.render.Renderer")
+    local w0, h0 = Renderer.uiWidth, Renderer.uiHeight
+    Renderer.uiWidth, Renderer.uiHeight = 320, 288
     local s = factory.new(fakeGame(3, 0))
     s.boxHandle = function() return nil end
     saveOf().scene = nil
@@ -1182,13 +1190,71 @@ do
       T.eq(zones[1].colors, false,
         "con una scena la superficie esce dal rimappaggio")
     end
+    -- e SOPRA UNA SCENA non c'e' nessuna zona per cella.
+    --
+    -- Una zona e' un rettangolo: rimappa anche la scena che si vede dentro
+    -- la cella, e con lo sfondo della figura reso trasparente la
+    -- riporterebbe a bianco -- il cartoncino bianco sotto i catturati,
+    -- grande quanto la cella invece che quanto la figura. Con una scena i
+    -- colori viaggiano con la FIGURA (lo shader di paintPic), non col
+    -- rettangolo.
+    if zones then
+      T.eq(#zones, 1, "con una scena c'e' solo la zona di fondo")
+    end
     store.backdrop = "white"
     zones = s:sgbPalettes()
     if zones then
       T.check(zones[1].colors == PaletteFX.GRAYS,
         "e senza scena resta il grigio di sempre")
+      -- senza scena il fondo e' bianco pieno: li' il cartoncino non si vede
+      -- e le zone restano il modo in cui un Pokemon prende i suoi colori
+      if PaletteFX.monPal(Data, ordered[1]) then
+        T.check(#zones > 1, "e le zone per cella tornano al loro posto")
+      end
     end
     store.backdrop = "scene"
+    store.grid = wasGrid
+    Renderer.uiWidth, Renderer.uiHeight = w0, h0
+  end
+
+  -- ------- la figura passa dal gancio che una mod di sprite intercetta
+  --
+  -- Il record della specie e' congelato dopo il caricamento: un pack che
+  -- sostituisce l'arte (gli sprite di Crystal, per dirne una) non puo'
+  -- riscrivere `spriteFront`. Il seam e' `pokemon.sprite`, alzato da
+  -- Sprites.path, e questo schermo era l'unico del gioco che leggeva il
+  -- record diretto -- cioe' l'unico che mostrava ancora l'arte vanilla
+  -- mentre tutto il resto mostrava quella del pack.
+  do
+    local Sprites = require("src.pokemon.Sprites")
+    local Assets = require("src.render.Assets")
+    local real = Sprites.path
+    local askedFor, askedKind = nil, nil
+    local other = nil
+    for _, id in ipairs(ordered) do
+      local def = Data.pokemon[id]
+      if def and def.spriteFront and def.spriteFront ~= Data.pokemon[ordered[1]].spriteFront then
+        other = def.spriteFront
+        break
+      end
+    end
+    -- se il dataset ha una seconda figura si intercetta con QUELLA, cosi'
+    -- il confronto distingue davvero il gancio dal record; se ne ha una
+    -- sola si intercetta con la stessa, e resta comunque vero che la
+    -- figura disegnata e' quella che il gancio ha risposto
+    local hooked = other or Data.pokemon[ordered[1]].spriteFront
+    Sprites.path = function(_, species, side, opts)
+      askedFor, askedKind = species, opts and opts.kind
+      return hooked, false
+    end
+    local s = factory.new(fakeGame(3, 0))
+    local img = s.picOf(Data.pokemon[ordered[1]])
+    Sprites.path = real
+    T.eq(askedFor, ordered[1], "la figura si chiede a Sprites.path per specie")
+    T.eq(askedKind, "dex", "dicendo quale schermo la sta chiedendo")
+    local okReal, want = pcall(Assets.image, hooked)
+    T.check(okReal and want and img == want,
+      "e quello che torna il gancio e' quello che si disegna")
   end
 
   -- ------- le due colonne del pannello non si toccano
@@ -1287,7 +1353,7 @@ do
   -- disegnare cinque colonne su una tela da 160 quando qualcosa e' stato
   -- spinto sopra questo schermo -- quindi il test la simula, come fa il
   -- gioco dopo aver onorato uiSize().
-  withWindow(1080, 2160, function()
+  local function fullLayoutOf()
     local Renderer = require("src.render.Renderer")
     local s = factory.new(fakeGame(3, 0))
     local w, h = s:uiSize()
@@ -1295,6 +1361,12 @@ do
     Renderer.uiWidth, Renderer.uiHeight = w, h
     local L = s.layout and s.layout() or nil
     Renderer.uiWidth, Renderer.uiHeight = prevW, prevH
+    return L
+  end
+
+  store.grid = "big"
+  withWindow(1080, 2160, function()
+    local L = fullLayoutOf()
     if L then
       T.check(L.full, "col pieno schermo la disposizione e' quella piena")
       T.check(L.rows > 4, "e ci stanno piu' righe delle quattro del Game Boy")
@@ -1302,6 +1374,19 @@ do
         "con la cella grande: a 28 la figura del Pokemon si disegna dimezzata")
     end
   end)
+
+  -- GRID non viene scavalcato nemmeno qui: e' la stessa domanda -- quanto e'
+  -- grande una cella -- e ha una risposta su qualsiasi superficie. Come
+  -- nella mod delle box, che e' stata segnalata proprio per questo.
+  store.grid = "classic"
+  withWindow(1080, 2160, function()
+    local L = fullLayoutOf()
+    if L then
+      T.eq(L.cell, 28, "in pieno schermo GRID CLASSIC da' la cella piccola")
+      T.check(L.rows > 8, "e con quella ci stanno molte piu' righe")
+    end
+  end)
+  store.grid = "big"
 
   store.fullscreen = false
 end
