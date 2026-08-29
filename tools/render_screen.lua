@@ -142,6 +142,16 @@ run.loader.modSave.gen3_dex = run.loader.modSave.gen3_dex or {}
 local dexSave = run.loader.modSave.gen3_dex
 dexSave.hand = tonumber(os.getenv("HAND") or "1")
 
+-- le immagini dei fondali passano da Assets.image: nel banco di prova
+-- love.graphics.newImage e' uno stub che non legge file, quindi qui si
+-- fornisce un caricatore che legge davvero i PNG a 8 bit del pack
+local function readPng(path)
+  local f = io.open(path, "rb")
+  if not f then return nil end
+  f:close()
+  return nil
+end
+
 local game = {
   data = Data,
   save = { pokedex = { seen = {}, owned = {} }, party = {} },

@@ -1193,8 +1193,76 @@ return function(mod)
         end },
     }
 
+    -- ------- and seven that somebody else drew
+    --
+    -- CC0 pixel art, quiet on purpose: what goes behind a list should not
+    -- compete with it. Each is a seamless tile brought down to a texture
+    -- and lightened towards white, because the type on top is black -- the
+    -- lightening is the only thing done to them, and it is stated in
+    -- THIRD_PARTY_NOTICES.md as CC BY asks even though CC0 does not.
+    local ART = "mods/gen3_dex/assets/backdrops/"
+    -- Four scenes, five hands. The seam of each was measured before it was
+    -- given a speed: the ones that loop drift, the two that do not hold
+    -- still and pan inside their own margin instead.
+    local BORROWED = {
+      { id = "BRICKS", by = "KENNEY",    image = "bricks_kenney.png",   speed = 0.02 },
+      { id = "BRICKS", by = "GABOTTLES", image = "wall_gabottles.png",  speed = 0.02 },
+      { id = "BLOCKS", by = "KENNEY",    image = "blocks_kenney.png",   speed = 0.02 },
+      { id = "PEBBLES", by = "KENNEY",   image = "pebbles_kenney.png",  speed = 0.03 },
+      { id = "PLANKS", by = "KENNEY",    image = "planks_kenney.png",   speed = 0.02 },
+      { id = "TILES",  by = "CAELES",    image = "tiles_caeles.png",    speed = 0.02 },
+      -- the parchment is a photograph of paper rather than a tile: it holds
+      -- still, because sliding something that does not continue into itself
+      -- drags its join across the screen. Same for the star field.
+      { id = "PAPER2", by = "CRON",      image = "parchment_cron.png" },
+      { id = "SPACE",  by = "ZANIN",     image = "space_zanin.png", veil = 0.55 },
+    }
+
+    local backdropImages = {}
+    local function backdropImage(entry)
+      local hit = backdropImages[entry.image]
+      if hit ~= nil then return hit or nil end
+      local ok, img = pcall(Assets.image, ART .. entry.image)
+      backdropImages[entry.image] = (ok and img) or false
+      return (ok and img) or nil
+    end
+
+    -- Drawn the way the box draws a strip: scaled by a whole number so the
+    -- pixels stay square, tiled across, and scrolled only if it loops.
+    local function drawBorrowed(entry, w, h, t)
+      local img = backdropImage(entry)
+      if not img then return false end
+      local okDim, iw, ih = pcall(function()
+        return img:getWidth(), img:getHeight()
+      end)
+      if not (okDim and iw and iw > 0) then return false end
+      local scale = math.max(1, math.floor(h / ih))
+      local span = iw * scale
+      local ox = 0
+      if (entry.speed or 0) > 0 then
+        ox = math.floor(t * entry.speed) % span
+      elseif span > w then
+        ox = math.floor((span - w) / 2)
+      end
+      return pcall(function()
+        love.graphics.setColor(1, 1, 1, 1)
+        local x = -ox
+        while x < w do
+          love.graphics.draw(img, x, 0, 0, scale, scale)
+          x = x + span
+        end
+        love.graphics.setColor(1, 1, 1, 1)
+      end)
+    end
+
     local OWN_BY_ID = {}
     for _, sc in ipairs(OWN) do OWN_BY_ID[sc.id] = sc end
+    -- a scene can have more than one tile behind it: BRICKS has two hands
+    local BORROWED_BY_ID = {}
+    for _, b in ipairs(BORROWED) do
+      BORROWED_BY_ID[b.id] = BORROWED_BY_ID[b.id] or {}
+      table.insert(BORROWED_BY_ID[b.id], b)
+    end
 
     -- ------- what is behind the list
     --
@@ -1268,27 +1336,41 @@ return function(mod)
     -- itself is what a player sees before they are asked to install
     -- anything, and the borrowed ones are a bonus rather than the point.
     local function sceneList()
-      local out = {}
-      for _, sc in ipairs(OWN) do out[#out + 1] = sc.id end
+      local out, seen = {}, {}
+      local function add(id)
+        if not seen[id] then seen[id] = true; out[#out + 1] = id end
+      end
+      for _, sc in ipairs(OWN) do add(sc.id) end
+      for _, b in ipairs(BORROWED) do add(b.id) end
       local handle = self.boxHandle()
       local exports = handle and handle.exports
       if exports and exports.paintWallpaper then
         for _, w in ipairs(exports.wallpapers or {}) do
-          if w.id ~= "PLAIN" and w.id ~= "FAVE" and not OWN_BY_ID[w.id] then
-            out[#out + 1] = w.id
-          end
+          if w.id ~= "PLAIN" and w.id ~= "FAVE" then add(w.id) end
         end
       end
       return out
     end
 
+    -- Every hand on a scene, in one list: this mod's own drawing, the
+    -- artist whose tile carries that name, and then the box mod's hands
+    -- for the same place. A scene the box also has -- SEA, FOREST, NIGHT --
+    -- used to be DROPPED here rather than merged, which quietly hid every
+    -- artist the box had for it. They are all reachable now.
     local function handsFor(id)
-      -- a scene drawn here has one hand, and it is this mod
-      if OWN_BY_ID[id] then return { { by = "GEN3 DEX" } } end
+      local out = {}
+      if OWN_BY_ID[id] then out[#out + 1] = { by = "GEN3 DEX", own = true } end
+      for _, b in ipairs(BORROWED_BY_ID[id] or {}) do
+        out[#out + 1] = { by = b.by, borrowed = b }
+      end
       local handle = self.boxHandle()
       local exports = handle and handle.exports
-      local list = ((exports and exports.wallpaperArt) or {})[id]
-      return list or {}
+      if exports and exports.paintWallpaper then
+        for _, a in ipairs(((exports.wallpaperArt) or {})[id] or {}) do
+          out[#out + 1] = a
+        end
+      end
+      return out
     end
 
     -- ------- why the scene did not draw, said out loud
@@ -1304,8 +1386,17 @@ return function(mod)
     function self.sceneTrouble()
       -- a scene of this mod's own never has trouble: that is the point of
       -- having them
-      local id = sceneChoice()
-      if id == nil or OWN_BY_ID[id] then return nil end
+      local id, hand = sceneChoice()
+      if id == nil then return nil end
+      local hands = handsFor(id)
+      local chosen = hands[math.max(1, math.min(#hands, hand))]
+      -- a hand this mod supplies never has trouble: that is the point of
+      -- having them
+      if chosen and (chosen.own or chosen.borrowed) then return nil end
+      if OWN_BY_ID[id] or BORROWED_BY_ID[id] then
+        -- the scene exists here; only ITS box hands are unreachable
+        if #hands > 0 then return nil end
+      end
       local handle = self.boxHandle()
       if not handle then return "NEEDS GEN3 BOX" end
       local exports = handle.exports
@@ -1339,11 +1430,12 @@ return function(mod)
         end
       end
       if not paper then return nil end
+      -- the hand index counts across ALL of this scene's hands, and the
+      -- box's are last: take off the ones this mod supplied
       local list = (exports.wallpaperArt or {})[id] or {}
-      -- a HAND past the end of a scene's list is not an error, it is a
-      -- player who set 7 and then chose a scene with five: clamp rather
-      -- than draw nothing
-      local style = list[math.max(1, math.min(#list, hand))]
+      local ahead = (OWN_BY_ID[id] and 1 or 0) + #(BORROWED_BY_ID[id] or {})
+      local at = hand - ahead
+      local style = list[math.max(1, math.min(#list, at))]
       return paper, style, exports.paintWallpaper
     end
 
@@ -1432,21 +1524,39 @@ return function(mod)
     -- to paint its one. Both the palette zones and the cell wash ask this.
     function self.sceneIsDrawn()
       if backdropName() ~= "scene" then return false end
-      local id = sceneChoice()
-      if id == nil or OWN_BY_ID[id] then return true end
+      local id, hand = sceneChoice()
+      if id == nil then return true end
+      local hands = handsFor(id)
+      local chosen = hands[math.max(1, math.min(#hands, hand))]
+      if chosen and (chosen.own or chosen.borrowed) then return true end
       local handle = self.boxHandle()
       local exports = handle and handle.exports
       return (exports and exports.paintWallpaper) ~= nil
     end
 
     local function drawScene(L)
-      local id = sceneChoice()
-      local own = OWN_BY_ID[id or ""]
-      if not own and not id then own = OWN[1] end
-      if own then
-        local ok = pcall(own.draw, L.w, L.h, self.sceneTick, own.palette)
+      local id, hand = sceneChoice()
+      if id == nil then id = OWN[1].id end
+      -- WHICH hand decides what draws: the same place can be this mod's own
+      -- drawing, somebody's tile, or one of the box mod's wallpapers, and
+      -- they are three different things behind one name.
+      local hands = handsFor(id)
+      local chosen = hands[math.max(1, math.min(#hands, hand))]
+      if chosen and chosen.own then
+        local own = OWN_BY_ID[id]
+        local ok = own and pcall(own.draw, L.w, L.h, self.sceneTick, own.palette)
         if ok then
           self.sceneVeil = veilFor({ palette = own.palette })
+          return true
+        end
+        return false
+      end
+      if chosen and chosen.borrowed then
+        if drawBorrowed(chosen.borrowed, L.w, L.h, self.sceneTick) then
+          -- most of these are lightened towards white on purpose, so the
+          -- wash under the cells is the lightest one. The star field is
+          -- not -- a lightened space is not space -- so it names its own.
+          self.sceneVeil = chosen.borrowed.veil or 0.2
           return true
         end
         return false

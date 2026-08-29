@@ -50,7 +50,7 @@ file.
 | `START MENU` | on / off | whether either row is added at all |
 | `A OPENS` | `MENU` / `DATA` | the three-way menu, or straight to the species page |
 | `OW SPRITES` | on / off | draw Wilds of Kanto's overworld sprites in the `CLASSIC` grid (on by default; does nothing without that mod — see below) |
-| `BACKDROP` | `SCENE` / `SOFT` / `PAPER` / `MINT` / `PEACH` / `WHITE` | what is behind the list. `SCENE` (the default) is one of the six scenes this mod draws — DAWN, SEA, FOREST, NIGHT, EMBER, PAPER — chosen in game with **SELECT → A on THEME**. With [gen3_box](https://github.com/MadeinTaly/gen1recomp-gen3-boxes) 1.15.0+ installed, its ninety-one scenes appear in the same chooser as well |
+| `BACKDROP` | `SCENE` / `SOFT` / `PAPER` / `MINT` / `PEACH` / `WHITE` | what is behind the list. `SCENE` (the default) is one of **fourteen**: six drawn here, and eight CC0 tiles by Kenney, cron, Gabottles, caeles and ZaninDevelopers. Chosen in game with **SELECT → A on THEME**. With [gen3_box](https://github.com/MadeinTaly/gen1recomp-gen3-boxes) 1.15.0+ installed its wallpapers join the same chooser — 26 places and 103 backdrops between the two |
 
 ## Where does it live
 

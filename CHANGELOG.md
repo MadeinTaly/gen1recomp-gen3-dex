@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.12.0 — eight tiles, five hands, and the box's scenes no longer hidden
+
+**Thirteen places and fourteen backdrops with nothing else installed.** Six
+are drawn here; the other eight are CC0 pixel art by five artists — Kenney,
+cron, Gabottles, caeles and ZaninDevelopers — credited in
+`THIRD_PARTY_NOTICES.md` and, more usefully, in the chooser itself.
+
+Each tile is reduced until its motif reads as a texture (a 256-pixel pattern
+cropped to 144 rows at 1:1 is a blob, not a pattern), lightened towards white
+because the type here is black, and tiled at its own scale. `SPACE` is the
+exception and keeps its night: a lightened star field is not a star field, so
+it asks for a heavier wash under the cells instead.
+
+**And the box mod's scenes are no longer dropped.** A scene both mods have —
+SEA, FOREST, NIGHT — used to be skipped here, which quietly hid *every*
+artist the box had for it. Hands are merged now: this mod's own drawing
+first, then the tile artists, then the box's. With both mods installed the
+chooser reaches **26 places and 103 backdrops**.
+
+Which hand you are on decides what draws, rather than the scene's name: the
+same place can be a drawing, a tile or a borrowed wallpaper, and those are
+three different things behind one word.
+
 ## 0.11.1 — the scene keeps its colours
 
 Reported with a photograph: the Pokedex drawing FOREST in four greys while
