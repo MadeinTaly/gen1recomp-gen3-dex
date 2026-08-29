@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.1 — the same scale bug, the same fix
+
+FULL SCREEN chose the smallest canvas it could instead of the largest. The
+scale search ran from eight down to three and never tried one or two, and a
+phone reports about 405x900 in logical units -- so it settled on 160x300:
+five columns, a Pokedex that looked zoomed in.
+
+Every whole scale from one now, keeping whichever fits the most cells. At a
+reported 405x900 that is thirteen columns by eighteen rows.
+
 ## 0.13.0 — FULL SCREEN: more rows, same cells
 
 The same option the box mod grew, spent the way this screen wants it: the

@@ -194,15 +194,28 @@ return function(mod)
 
   local function fullLayout()
     local ww, wh = windowSize()
+    -- The SMALLEST whole scale that still fits inside what the engine will
+    -- take: the biggest canvas available, which is the most rows.
+    --
+    -- Not the largest scale (that maximises pixel size and minimises how
+    -- much you see), and not a search for whichever scale fits the most
+    -- cells: on a phone love.graphics.getDimensions reports LOGICAL units,
+    -- so a 1080-wide screen reports about 405, and that search settled on a
+    -- 160-wide canvas -- five columns, a Pokedex that looked zoomed in.
+    -- Try every whole scale from ONE up and keep whichever fits the most
+    -- cells, preferring the larger scale on a tie. Starting at 1 is the
+    -- part that matters: a phone reports about 405x900, where scale 1 gives
+    -- a 400x576 canvas and thirteen columns, and scale 3 gives 160x300 and
+    -- five -- which is what shipped and looked zoomed in rather than opened
+    -- up.
     local best, bestW, bestH = -1, MIN_W, MIN_H
-    for scale = 8, 3, -1 do
+    for scale = 1, 8 do
       local w = math.max(MIN_W, math.min(MAX_W, math.floor(ww / scale)))
       local h = math.max(MIN_H, math.min(MAX_H, math.floor(wh / scale)))
       w, h = w - w % 8, h - h % 8
-      -- 28-pixel cells, a header row and a two-line footer
       local cols = math.max(3, math.floor((w - 16) / 28))
       local rows = math.max(2, math.floor((h - 24 - 26) / 28))
-      if cols * rows > best then best, bestW, bestH = cols * rows, w, h end
+      if cols * rows >= best then best, bestW, bestH = cols * rows, w, h end
     end
     local w, h = bestW, bestH
     local cols = math.max(3, math.floor((w - 16) / 28))
