@@ -1,6 +1,20 @@
 # Changelog
 
-## 0.19.0 -- fingers, and two of them resize the grid
+## 0.19.0 -- fingers, and the Unown row again
+
+**A sprite pack was overruling the Unown form.** 0.17.3 only took the form
+when the hook had passed the species record straight back, so a pack won
+over it -- and a pack answers the ONE Unown picture it has, because
+`pokemon.sprite` is keyed by SPECIES and knows nothing about letters. One
+picture went onto every form, which reads exactly like the mod rewriting
+your Unown. It was reported on the box mod (#7 there) and this screen had
+the same ordering.
+
+Every engine screen puts the form on top instead -- the Gold box does not
+even ask the seam, it reads the record and overlays the form
+(`src/ui/gen2/BoxMenu.lua:668-676`). So does this now. A pack that really
+wants the forms has the place the engine reads them from, the species' own
+`letters` table, and `formSprite` looks there, so that route still works.
 
 **TOUCH, off by default.** While it is off this screen is exactly the screen
 it was: the pointer hook returns before it looks at anything, so the grid

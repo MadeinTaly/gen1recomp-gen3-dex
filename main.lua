@@ -629,9 +629,22 @@ return function(mod)
       end)
       -- a hook that passed the record straight back does not get to
       -- overrule the Unown form the player actually met
+      -- The FORM beats the pack (box mod issue #7, second report). 0.17.3
+      -- only took the form when the hook had passed the record straight
+      -- back, so a sprite pack overruled it -- and a pack answers the ONE
+      -- Unown picture it has, because `pokemon.sprite` is keyed by species.
+      -- Twenty-six forms wearing one picture reads exactly like the mod
+      -- rewriting your Unown, which is how it was reported.
+      --
+      -- Every engine screen puts the form on top instead: the Gold box
+      -- does not even ask the seam, it reads the record and overlays the
+      -- form (src/ui/gen2/BoxMenu.lua:668-676). So does this now. A pack
+      -- that really wants the forms has the place the engine reads them
+      -- from -- the species' own `letters` table -- and formSprite looks
+      -- there, so that route still works.
       local form = unownPath(def)
-      if form and (not ok or hooked == def.spriteFront) then
-        hooked, hookedTrue = form, false
+      if form then
+        hooked, hookedTrue, ok = form, false, true
       end
       local img = ok and tryImage(hooked) or nil
       local trueColor = img and hookedTrue and true or false
