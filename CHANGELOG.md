@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.18.0 -- a caught Pokemon breathes
+
+**FULL SCREEN did nothing on Gold.** The toggle read ON and the screen stayed
+a 160x144 stamp in the middle of a white field. Gold composes through
+`Game2`, which never asks a state how big it would like to be -- there is not
+one mention of `uiSize` in `src/core/Game2.lua` -- and that is a real limit
+for BIG. It is NOT a limit for FULL: `fullLayout` measures the actual window
+through `love.graphics.getDimensions`, so its size was already right on
+either generation, and `drawsWidescreen` has answered true for `L.full` on
+Gen 2 all along. `layout()` was the one place that refused to hand a full
+layout back on Gold, and everything downstream was waiting for one it never
+got. The box mod has always done this correctly -- `if fullOn() then return
+fullLayout() end` sits ABOVE its Gen 2 guard -- so this is the dex being
+brought back in line with its twin rather than anything new being invented.
+
+
+**The notes popup follows a rule now.** It opens on a first install, and on
+an update that actually carries the thing it describes -- nothing else. The
+gate was `newsSeen() ~= NEWS_VERSION`, DIFFERENT-FROM where it should have
+been OLDER-THAN: a save with a *newer* stamp than the running build --
+somebody who tried a prerelease and went back -- reopened the panel and was
+told about features that build does not have. It is `olderThan` now, which
+is false going backwards.
+
+`NEWS_VERSION` is not the manifest's version and must never be wired to it:
+it is the version that last changed what the mod DOES. 0.17.1, 0.17.2 and
+0.17.3 left it alone, so none of them interrupted anybody. This release
+moves it, because this release moves the screen.
+
+That bump also sprang a trap in the suite: this file copied `NEWS_VERSION`
+into a literal of its own, the copy parted from the mod, the popup opened in
+every screen the tests build and ate every keypress -- seven checks failed
+in places that have nothing to do with release notes. The stamp is a
+far-future version now, which survives any bump precisely because the check
+is older-than.
+
+
+Sprite packs that animate -- `crystal_animated_sprites_with_shiny_visuals` is
+the one this was written against -- keep one folder per species and number
+the frames inside it: `assets/front/normal/25/001.png`, and twenty more
+beside it for Pikachu. The engine's `pokemon.sprite` seam hands back a single
+string and has no idea the rest exist (`src/pokemon/Sprites.lua:24-41`), so
+every screen in the game has always drawn frame one and stopped.
+
+**The path is the map.** The frames beside the first one are the same name
+with the next number, so they are found by asking for them until the answer
+is no -- `Assets.image` raises on a file that is not there and the existing
+`pcall` already collected it. Nothing here knows the pack's name, its folder
+layout or its timings: any pack that numbers its frames animates, which is
+why this is not a dependency and there is nothing in the manifest about it.
+
+**The fallback is not a branch.** Art with no siblings -- the ROM's own
+pictures, or a pack that ships one image per species -- has no second frame
+and stays exactly as still as it was in 0.17.3. "No sibling" and "no pack"
+are the same answer, so there is no second code path to get wrong.
+
+**Caught moves, seen holds still.** The two halves of a dex were already told
+apart by ink (`DIM_SEEN`, 30%); now they are told apart across the room. A
+seen species stays on its first frame whatever the clock says.
+
+**One guard, and it earns its place.** A run only counts as an animation if
+it starts at `001`. A ROM sprite whose name happens to end in digits would
+otherwise walk from `025.png` into `026.png` -- which is the NEXT SPECIES'
+picture, not the next frame -- and animate a Pikachu into a Raichu.
+
+Nine new checks, and they were run against the old code first: the frames are
+found, the drawn image advances with the clock, a seen species does not move,
+a run that does not start at 001 is refused, and ROM art stays still. The
+suite is 199 checks.
+
 ## 0.17.3 -- the Unown row shows the form you met
 
 The same fault the box mod was reported for (#7 there), on the other screen:

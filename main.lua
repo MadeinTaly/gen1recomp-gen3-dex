@@ -288,6 +288,17 @@ return function(mod)
   local function layout(game)
     local L = wanted()
     if isGen2(game) then
+      -- FULL SCREEN works on Gold, and this line was the only thing saying
+      -- otherwise. Gold composes through Game2, which never asks a state for
+      -- `uiSize` (there is not one mention of it in src/core/Game2.lua) --
+      -- but FULL does not need it: `fullLayout` measures the real window
+      -- with love.graphics.getDimensions, so its size is already right on
+      -- either generation. `drawsWidescreen` below has answered true for
+      -- `L.full` on Gen 2 all along; this was the one place that refused to
+      -- hand a full layout back, so the option fell through to CLASSIC and
+      -- Gold drew a 160x144 stamp in the middle of a white field while the
+      -- toggle sat there reading ON.
+      if L.full then return L end
       if L == LAYOUT.big and bigFitsGen2Window() then return L end
       return LAYOUT.classic
     end
@@ -506,19 +517,75 @@ return function(mod)
       end
       local img = ok and tryImage(hooked) or nil
       local trueColor = img and hookedTrue and true or false
+      local path = img and hooked or nil
       -- 2. the species record, which is what the game shipped with
       if not img then
         img = tryImage(def.spriteFront)
         trueColor = false
+        path = img and def.spriteFront or nil
       end
       if not img then
         picCache[def.id] = false
         return nil
       end
-      picCache[def.id] = { img = img, trueColor = trueColor }
+      -- the path is kept, not just the picture: it is the only thing that
+      -- says whether the art that answered has more frames beside it.
+      picCache[def.id] = { img = img, trueColor = trueColor, path = path }
       return img, trueColor
     end
     self.picOf = picOf
+
+    -- ------- A CAUGHT POKEMON BREATHES
+    --
+    -- Sprite packs that animate -- crystal_animated_sprites_with_shiny_visuals
+    -- is the one this was written against -- keep one folder per species and
+    -- number the frames inside it, `.../front/normal/25/001.png`. The engine's
+    -- `pokemon.sprite` hook hands back a single path and has no idea the rest
+    -- exist: it always answers frame one. But that first path is the whole
+    -- map. The frames beside it are the same name with the next number, so
+    -- they are found by ASKING FOR THEM until the answer is no.
+    --
+    -- Nothing here knows the pack's name, its layout or its timings, so any
+    -- pack that numbers its frames animates, and a pack that ships one
+    -- picture -- or the ROM, which ships one picture -- simply has no second
+    -- frame and stays as still as it did before. That is the fallback: it
+    -- costs no branch, because "no siblings" and "no pack" are the same
+    -- answer.
+    --
+    -- The guard is that the run must START at 1. A ROM sprite that happens to
+    -- end in digits (`.../025.png`) would otherwise walk into 026 -- which is
+    -- a DIFFERENT SPECIES' picture -- and animate a Pikachu into a Raichu.
+    local animCache = {}
+    local ANIM_MAX = 64      -- a bad match stops here rather than never
+    local ANIM_EVERY = 6     -- drawn frames per sprite frame, about 10fps
+    local function animOf(def)
+      local hit = animCache[def.id]
+      if hit ~= nil then return hit or nil end
+      local entry = picCache[def.id]
+      if not entry or entry == false or not entry.path then
+        animCache[def.id] = false
+        return nil
+      end
+      local dir, num, ext = entry.path:match("^(.*[/\\])(%d+)(%.[%a%d]+)$")
+      if not dir or tonumber(num) ~= 1 then
+        animCache[def.id] = false
+        return nil
+      end
+      local pattern = "%s%0" .. #num .. "d%s"
+      local frames = { entry.img }
+      for i = 2, ANIM_MAX do
+        local nxt = tryImage(pattern:format(dir, i, ext))
+        if not nxt then break end
+        frames[#frames + 1] = nxt
+      end
+      if #frames < 2 then
+        animCache[def.id] = false
+        return nil
+      end
+      animCache[def.id] = frames
+      return frames
+    end
+    self.animOf = animOf
 
     -- ------- and the colours travel with the PICTURE, not with a rectangle
     --
@@ -978,7 +1045,15 @@ return function(mod)
     -- so it reaches past the translate/scale and covers the letterbox too.
     function self:drawWidescreen(winW, winH)
       local L = layout(game)
-      local scale = math.max(1, math.floor(math.min(winW / L.w, winH / L.h)))
+      -- FULL fills; BIG stays on whole pixels. Flooring the ratio suits
+      -- BIG, a fixed 320x288 that wants crisp whole pixels, and ruins FULL,
+      -- whose size is already chosen to suit the window: a ratio of 1.37
+      -- floors to 1, so Gold drew the screen at life size in the middle of
+      -- the glass with a white band down each side while Gen 1 -- same
+      -- option, same layout, but fitted by the renderer through uiSize() --
+      -- filled it. The box mod carries the identical fix.
+      local fit = math.min(winW / L.w, winH / L.h)
+      local scale = (L.full and fit) or math.max(1, math.floor(fit))
       local ox = math.floor((winW - L.w * scale) / 2)
       local oy = math.floor((winH - L.h * scale) / 2)
       love.graphics.push()
@@ -1048,9 +1123,17 @@ return function(mod)
       -- list stays one zone long; on the plain white background the zones
       -- are still how a Pokemon gets its colours, exactly as before.
       if not onScene then
+        -- A ceiling, the same one the box mod keeps (its `MAX_ZONES = 40`).
+        -- Every zone costs the remap pass another blit of the whole surface,
+        -- and this list had none: a full-screen grid of owned species emits
+        -- one per cell, so a finished Pokedex paid eighty blits a frame to
+        -- colour eighty pictures. Past the ceiling the rest keep the base
+        -- palette, which is what they wore before any of this existed.
+        local MAX_ZONES = 40
         local tiles = L.cell / 8
         local start = pageStart()
         for slot = 0, perPage() - 1 do
+          if #zones >= MAX_ZONES then break end
           local e = self.entries[start + slot + 1]
           if e and e.state == "owned" then
             local colors = PaletteFX.monPal(game.data, e.def.id)
@@ -1099,6 +1182,21 @@ return function(mod)
     -- ------- input
 
     function self:update()
+      -- ------- THE CLOCK TICKS ON THE LOGIC STEP, NOT ON THE FRAME
+      --
+      -- This lived in draw(), which is once per DRAWN frame: the scenes
+      -- drifted -- and, since 0.18.0, the caught Pokemon animated -- at
+      -- whatever rate the device happens to redraw at. A 120Hz phone ran
+      -- everything at twice the speed of a 60Hz one, which is not a
+      -- setting anybody chose. update() is the engine's fixed logic step,
+      -- which is where the box mod has always counted its own drift
+      -- (gen3_box main.lua, `paperTick` in its update), so the two mods
+      -- now move at the same speed as each other and as the game.
+      --
+      -- Before every early return below, so the scene keeps breathing
+      -- while a panel is open rather than freezing under it -- again the
+      -- same order the box uses.
+      self.sceneTick = (self.sceneTick or 0) + 1
       local input = game.input
       local n = #self.entries
       local per = perPage()
@@ -1805,9 +1903,25 @@ return function(mod)
     --
     -- Same shape, same keys and the same accent as the box mod's, down to
     -- the wrapping: a player with both mods learns this once.
-    local NEWS_VERSION = "0.17.0"
+    -- 0.18.0 changed what the screen DOES -- caught Pokemon move now -- so
+    -- this moves with it. 0.17.1 through 0.17.3 did not, and did not.
+    local NEWS_VERSION = "0.18.0"
     local NEWS_ACCENT = { 32, 96, 208 }
     local NEWS = {
+      {
+        title = "THEY MOVE NOW",
+        lines = {
+          { "Caught Pokemon", true },
+          { "animate.", true },
+          { "" },
+          { "Seen ones stay" },
+          { "still and pale." },
+          { "" },
+          { "Needs a sprite" },
+          { "pack that draws" },
+          { "frames." },
+        },
+      },
       {
         title = "BACKDROPS",
         lines = {
@@ -1900,6 +2014,38 @@ return function(mod)
       return ok and value or nil
     end
 
+    -- ------- WHEN THE PANEL IS ALLOWED TO OPEN ITSELF
+    --
+    -- Two cases, and only two: a FIRST INSTALL, and an update that actually
+    -- carries the thing the panel talks about. Everything else stays quiet.
+    --
+    -- NEWS_VERSION is NOT the manifest's version and must never be wired to
+    -- it. It is the version that last changed what the mod DOES, so a
+    -- release that only fixes a bug leaves it alone and nobody is
+    -- interrupted. Bump it when a page below describes something a player
+    -- can now do and could not before.
+    --
+    -- The comparison is OLDER-THAN, not DIFFERENT-FROM. `~=` was the bug: a
+    -- save carrying a newer stamp than the build it is running -- somebody
+    -- who tried a prerelease and went back to stable -- differs from
+    -- NEWS_VERSION, so the panel opened and announced features the running
+    -- build does NOT have. Older-than is false in that direction.
+    local function olderThan(seen, target)
+      if seen == nil or seen == "" then return true end -- first install
+      if seen == target then return false end
+      local function parts(v)
+        local out = {}
+        for n in tostring(v):gmatch("%d+") do out[#out + 1] = tonumber(n) end
+        return out
+      end
+      local a, b = parts(seen), parts(target)
+      for i = 1, math.max(#a, #b) do
+        local x, y = a[i] or 0, b[i] or 0
+        if x ~= y then return x < y end
+      end
+      return false
+    end
+
     local function closeNews()
       self.news = nil
       pcall(function() mod.save:set("newsSeen", NEWS_VERSION) end)
@@ -1910,7 +2056,8 @@ return function(mod)
     self.closeNews = closeNews
     self.newsPages = NEWS
     self.newsVersion = NEWS_VERSION
-    if newsSeen() ~= NEWS_VERSION then openNews() end
+    if olderThan(newsSeen(), NEWS_VERSION) then openNews() end
+    self.newsOlderThan = olderThan
 
     -- written in CLASSIC pixels and drawn at whole scale, so BIG and full
     -- screen get the same page twice as big rather than the same page in a
@@ -2160,7 +2307,7 @@ return function(mod)
 
     function self:draw()
       local L = layout(game)
-      self.sceneTick = (self.sceneTick or 0) + 1
+      -- the clock is wound in update(), on the logic step: see the note there
       love.graphics.clear(1, 1, 1, 1)
       drawBackdrop(L)
       -- the caption rows on solid bands: they carry black type, they are
@@ -2231,6 +2378,17 @@ return function(mod)
           if not drawnOw and not drawnIcon then
             local img, trueColor
             if e.state ~= "unknown" then img, trueColor = picOf(e.def) end
+            -- Caught moves, seen holds still. The two halves of a dex were
+            -- already told apart by ink; now they are told apart across the
+            -- room, and a species with no second frame reads as seen-and-
+            -- caught exactly as it did before.
+            if img and e.state == "owned" then
+              local frames = animOf(e.def)
+              if frames then
+                img = frames[1
+                  + math.floor(self.sceneTick / ANIM_EVERY) % #frames]
+              end
+            end
             if img then
               local k = picScale(img, L.cell)
               local w, h = img:getWidth() * k, img:getHeight() * k

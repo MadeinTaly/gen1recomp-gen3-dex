@@ -40,11 +40,21 @@ local store = loader.modOptions.gen3_dex
 -- farebbe finire ogni pressione di questo file su una pagina di note. Il
 -- salvataggio dice che sono state lette, come farebbe il secondo avvio; il
 -- blocco in fondo lo azzera per provare il popup.
-local NEWS_VERSION = "0.17.0"
+-- Il timbro NON ricopia la costante della mod. Ricopiarla la incolla a una
+-- versione: al primo bump di NEWS_VERSION le due si staccano, la popup si
+-- apre in ogni schermo costruito qui e si mangia ogni pressione -- sette
+-- test scoppiano in punti che con le note non c'entrano niente, ed e'
+-- esattamente quello che e' successo salendo a 0.18.0.
+--
+-- Un timbro FUTURO invece regge qualsiasi bump: `olderThan` e'
+-- PIU' VECCHIO-DI, quindi un save piu' nuovo della build non riapre mai il
+-- pannello. Il blocco in fondo lo azzera per provare il popup davvero, e
+-- c'e' un test apposta sulla regola di quando deve uscire.
+local NEWS_SEEN_FUTURE = "99999.0.0"
 loader.modSave = loader.modSave or {}
 loader.modSave.gen3_dex = loader.modSave.gen3_dex or {}
 local newsStore = loader.modSave.gen3_dex
-newsStore.newsSeen = NEWS_VERSION
+newsStore.newsSeen = NEWS_SEEN_FUTURE
 
 -- ------- a save to look at
 --
@@ -1547,6 +1557,122 @@ do
   T.check(blob:find("THEME"), "le note dicono dove si cambia lo sfondo")
   T.check(blob:find("OPTIONS"), "e dove si accende il pieno schermo")
   T.check(blob:find("CONTEST"), "e che il contest esiste")
+end
+
+-- ------- UN CATTURATO SI MUOVE, UN VISTO STA FERMO
+--
+-- I pack che animano -- crystal_animated_sprites_with_shiny_visuals e'
+-- quello contro cui e' stato scritto -- tengono una cartella per specie e
+-- numerano i frame dentro. Il gancio `pokemon.sprite` ne risponde UNO solo
+-- (src/pokemon/Sprites.lua:24-41: torna una stringa, mai una lista), ma
+-- quel percorso e' la mappa: i fratelli si trovano chiedendoli finche' la
+-- risposta e' no.
+--
+-- Le tre cose che questo blocco tiene ferme, in ordine di quanto fanno
+-- male: che i frame si trovino, che il disegno li percorra col tempo, e
+-- che un'arte SENZA fratelli -- la ROM -- resti ferma invece di sparire.
+-- La terza e' il ripiego, e non ha un ramo suo: "nessun fratello" e
+-- "nessun pack" sono la stessa risposta.
+do
+  local Sprites = require("src.pokemon.Sprites")
+  local Assets = require("src.render.Assets")
+  local realPath, realImage = Sprites.path, Assets.image
+  local DIR, FRAMES = "mods/gen3_dex/assets/anim/", 3
+  local function framePath(n) return ("%s%03d.png"):format(DIR, n) end
+  local fake = {}
+  for i = 1, FRAMES do
+    fake[i] = { getWidth = function() return 56 end,
+                getHeight = function() return 56 end }
+  end
+  -- Nel banco di prova Assets.image non fallisce MAI, mentre in gioco
+  -- love.graphics.newImage solleva su un file che non c'e'
+  -- (src/render/Assets.lua:57-65) e il pcall di tryImage lo raccoglie.
+  -- Senza un quarto frame mancante il sondaggio non avrebbe un fondo.
+  Assets.image = function(path)
+    local n = path:match("^" .. DIR .. "(%d+)%.png$")
+    if n then
+      local i = tonumber(n)
+      if i > FRAMES then error("no such file: " .. path) end
+      return fake[i]
+    end
+    return realImage(path)
+  end
+
+  Sprites.path = function() return framePath(1), false end
+  local s = factory.new(fakeGame(#ordered, 0))
+  T.check(s.picOf(Data.pokemon[ordered[1]]) == fake[1],
+    "la figura di partenza e' il primo frame")
+  local frames = s.animOf(Data.pokemon[ordered[1]])
+  T.check(frames and #frames == FRAMES,
+    "i frame accanto al primo si trovano chiedendoli")
+
+  local realGDraw = love.graphics.draw
+  local function drawnAt(screen, tick)
+    local hit = {}
+    screen.sceneTick = tick
+    love.graphics.draw = function(img, ...)
+      hit[img] = true
+      return realGDraw(img, ...)
+    end
+    screen:draw()
+    love.graphics.draw = realGDraw
+    return hit
+  end
+
+  local atZero = drawnAt(s, 0)
+  local atSix = drawnAt(s, 6)
+  T.check(atZero[fake[1]], "a tick zero si disegna il primo frame")
+  T.check(atSix[fake[2]], "sei fotogrammi dopo si disegna il secondo")
+  T.check(not atSix[fake[1]], "e il primo non e' piu' quello disegnato")
+
+  -- un VISTO non si muove: e' meta' dell'informazione che la griglia porta
+  local s2 = factory.new(fakeGame(0, #ordered))
+  s2.picOf(Data.pokemon[ordered[1]])
+  local seenAtSix = drawnAt(s2, 6)
+  T.check(seenAtSix[fake[1]], "un visto resta sul primo frame")
+  T.check(not seenAtSix[fake[2]], "e non avanza col tempo")
+
+  -- 025.png seguito da 026.png e' la specie DOPO, non il fotogramma dopo:
+  -- una serie che non parte da 001 animerebbe un Pikachu in un Raichu.
+  Sprites.path = function() return framePath(2), false end
+  local s3 = factory.new(fakeGame(#ordered, 0))
+  s3.picOf(Data.pokemon[ordered[1]])
+  T.check(s3.animOf(Data.pokemon[ordered[1]]) == nil,
+    "una figura che non parte da 001 non viene animata")
+
+  -- e il ripiego: l'arte del gioco non ha fratelli e resta ferma
+  Sprites.path, Assets.image = realPath, realImage
+  local s4 = factory.new(fakeGame(#ordered, 0))
+  s4.picOf(Data.pokemon[ordered[1]])
+  T.check(s4.animOf(Data.pokemon[ordered[1]]) == nil,
+    "l'arte della ROM non ha frame accanto e resta ferma")
+end
+
+-- ------- LA POPPUP ESCE SOLO PER UNA FEATURE, O AL PRIMO AVVIO
+--
+-- Due casi e due soltanto. Il confronto e' PIU' VECCHIO-DI, non
+-- DIVERSO-DA: `~=` riapriva il pannello a chi tornava indietro da una
+-- prerelease, annunciandogli feature che la build NON ha.
+--
+-- Qui NEWS_VERSION e la versione del manifest coincidono, ed e' giusto:
+-- 0.18.0 CAMBIA quello che lo schermo fa. La regola non e' che debbano
+-- differire, e' che NEWS_VERSION non sia INCOLLATA al manifest -- 0.17.1,
+-- 0.17.2 e 0.17.3 sono passate senza toccarla.
+do
+  local s = factory.new(fakeGame(3, 0))
+  local older = s.newsOlderThan
+  local V = s.newsVersion
+
+  T.check(older(nil, V), "prima installazione: nessun timbro, si apre")
+  T.check(older("", V), "e un timbro vuoto conta come nessun timbro")
+  T.check(not older(V, V), "chi l'ha gia' vista non la rivede")
+  T.check(not older("99.0.0", V),
+    "un timbro piu' nuovo della build NON riapre il pannello")
+  T.check(older("0.17.0", V), "un aggiornamento che porta la feature la mostra")
+  T.check(not older("0.17.3", "0.17.3"),
+    "e tre bugfix di fila, che non la toccano, non la mostrano")
+  T.check(older("0.17.0-beta.2", "0.18.0"),
+    "una prerelease piu' vecchia si aggiorna comunque")
 end
 
 T.finish("gen3_dex")
