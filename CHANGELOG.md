@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.19.0 -- fingers, and two of them resize the grid
+
+**TOUCH, off by default.** While it is off this screen is exactly the screen
+it was: the pointer hook returns before it looks at anything, so the grid
+keeps whatever shape GRID was set to and no finger can move it. That is the
+whole of "touch disabled means standard" -- there is nothing to
+special-case, because nothing is special.
+
+**Two fingers resize the grid.** A pinch does not invent a zoom of its own:
+this screen has exactly two cell sizes and already has a setting that picks
+between them, so spreading asks for the bigger cell and pinching for the
+smaller. Because it is that same setting, the choice survives leaving the
+screen -- there is no second, hidden zoom to reconcile with the one in the
+options.
+
+**A tap moves the cursor; a second tap on the same cell opens it.** On a
+phone a cell is a few millimetres across, and opening on the first touch
+means opening whatever you happened to land on. Both verbs go through the
+same code the buttons use -- the cursor is `self.index`, opening is
+`self:open` -- because a parallel way to navigate is how a screen ends up
+with a touch cursor and a button cursor that disagree.
+
+**A vertical drag pages the list.** Whole pages rather than pixels: the grid
+has no half-scrolled state to draw, and pretending otherwise would need a
+scroll offset every other part of this screen would then have to respect.
+Travel is clamped, because a pointer that teleports arrives as ONE enormous
+delta and would otherwise fling the list to the end.
+
+A finger is turned back into a cell by `cellRect` read backwards, in the one
+place that converts a point, so the drawing and the touch cannot end up
+disagreeing about where a cell is. Coordinates arrive already local to the
+game viewport, so nothing here has to know about window scale or the
+surround -- which matters, because every geometry bug in this run came from
+a coordinate space nobody had checked.
+
+Eleven new checks: a finger lands back on the cell it was drawn in, the
+first tap only moves the cursor, the second opens, a drag pages and comes
+back, and a point outside the grid is nobody's cell.
+
 ## 0.18.0 -- a caught Pokemon breathes
 
 **FULL SCREEN did nothing on Gold.** The toggle read ON and the screen stayed

@@ -109,6 +109,15 @@ return function(mod)
     -- Game Boy constants, which is what made it hold at any size.
     { key = "fullscreen", label = "FULL SCREEN", type = "toggle",
       default = false },
+    -- TOUCH is off by default and, while it is off, this screen is exactly
+    -- the screen it was: the hook returns early, so the grid keeps whatever
+    -- shape GRID was set to and nothing here can move it.
+    --
+    -- A pinch does NOT invent a zoom of its own. This grid has always had
+    -- two cell sizes and a setting that picks between them, so two fingers
+    -- drive that same setting -- which is why the change sticks after you
+    -- leave, and why "touch off" needs no special case to mean "standard".
+    { key = "touch", label = "TOUCH", type = "toggle", default = false },
     { key = "backdrop", label = "BACKDROP", type = "choice", default = "scene",
       choices = {
         { "SCENE", "scene" },
@@ -475,6 +484,68 @@ return function(mod)
       return L.gridX + c * L.cell, L.gridY + r * L.cell
     end
     self.cellRect = cellRect
+
+    -- ------- A FINGER, TURNED BACK INTO A CELL
+    --
+    -- cellRect answers "where is slot n"; this is the same arithmetic read
+    -- backwards. It is deliberately the ONLY place that converts a point,
+    -- so a layout change cannot leave the touch and the drawing disagreeing
+    -- about where a cell is -- they are the same two lines either way.
+    --
+    -- Coordinates arrive as `gameX/gameY`, already local to the game
+    -- viewport (docs/modding.md: "local to the active game viewport"), so
+    -- nothing here has to know about window scale or the surround. That
+    -- matters more than it sounds: every screen bug in this session that
+    -- came from geometry came from a coordinate space nobody had checked.
+    local function slotAt(px, py)
+      local L = layout(game)
+      if not L or not L.cell or L.cell <= 0 then return nil end
+      local c = math.floor((px - L.gridX) / L.cell)
+      local r = math.floor((py - L.gridY) / L.cell)
+      if c < 0 or r < 0 or c >= gridCols() or r >= gridRows() then
+        return nil
+      end
+      return r * gridCols() + c
+    end
+    self.slotAt = slotAt
+
+    -- ------- what a finger is allowed to do
+    --
+    -- Two verbs, and both go through the SAME code the buttons use: the
+    -- cursor is `self.index` either way and opening is `self:open`. A
+    -- second, parallel way to navigate is how a screen ends up with a
+    -- touch cursor and a button cursor that disagree.
+    --
+    -- Both answer true when they did something, so the hook knows whether
+    -- to consume the event or hand it on.
+    self.pageBy = function(dir)
+      local per = perPage()
+      local n = #self.entries
+      if per <= 0 or n <= per then return false end
+      local at = math.floor(self.index / per)
+      local last = math.floor((n - 1) / per)
+      local to = math.max(0, math.min(last, at + dir))
+      if to == at then return false end
+      self.index = math.max(0, math.min(n - 1, to * per))
+      return true
+    end
+
+    self.touchTap = function(slot)
+      local idx = pageStart() + slot
+      if idx < 0 or idx >= #self.entries then return false end
+      -- the first tap only moves the cursor; the second, on the cell it is
+      -- already on, is A
+      if idx ~= self.index then
+        self.index = idx
+        return true
+      end
+      local e = self.entries[idx + 1]
+      if e and e.state ~= "unknown" then
+        self:open(e.def.id)
+        return true
+      end
+      return false
+    end
 
     -- The scale comes from the picture the game hands over, never assumed:
     -- pics arrive through Assets.image, the seam a sprite pack shadows, so
@@ -2595,8 +2666,156 @@ return function(mod)
     return self
   end
 
+  -- ------- TOUCH
+  --
+  -- Off by default, and while it is off this returns before it looks at
+  -- anything: the grid keeps the shape GRID was set to and no finger can
+  -- move it. That is the whole of "touch disabled means standard".
+  --
+  -- The pad keeps first refusal by contract, not by our arithmetic: a
+  -- pointer that begins on a virtual control belongs to the pad for its
+  -- whole life and never reaches this hook (docs/modding.md). So there is
+  -- nothing here to keep the d-pad and the fingers from fighting.
+  --
+  -- `live` is the grid currently on screen. It is set when one is built
+  -- and every use is guarded by "is it still the top of the stack", so a
+  -- finger that lands while a menu or an entry is open does nothing --
+  -- the state on top owns the screen, and this is not it.
+  local live = nil
+
+  do
+    local TAP_SLOP = 12    -- a tap that wanders less than this is still a tap
+    local DRAG_STEP = 28   -- travel that turns a drag into one page
+    local DRAG_MAX = 4     -- pages one event may move; a teleported pointer
+                           -- arrives as ONE huge delta and would otherwise
+                           -- fling the list to the end (the voxel mod clamps
+                           -- its camera for the same reason)
+    local PINCH_STEP = 48  -- gap change that counts as a deliberate pinch
+
+    local fingers = {}     -- id -> { x, y, x0, y0, moved, slot }
+    local pinch = nil      -- { a, b, gap } while two fingers are measuring
+
+    local function count()
+      local n = 0
+      for _ in pairs(fingers) do n = n + 1 end
+      return n
+    end
+
+    local function onTop(game)
+      if not live then return false end
+      local ok, top = pcall(function() return game.stack:top() end)
+      return ok and top == live
+    end
+
+    local function touchOn()
+      local ok, v = pcall(function() return mod.options:get("touch") end)
+      return ok and v == true
+    end
+
+    -- Two fingers drive the GRID setting rather than a zoom of their own:
+    -- this screen has exactly two cell sizes and already has a setting that
+    -- picks between them. Spreading asks for the bigger cell, pinching for
+    -- the smaller, and because it is that same setting the choice survives
+    -- leaving the screen -- there is no second, hidden zoom to reconcile.
+    local function setGrid(value)
+      local ok, cur = pcall(function() return mod.options:get("grid") end)
+      if ok and cur == value then return false end
+      local set = pcall(function() mod.options:set("grid", value) end)
+      return set
+    end
+
+    local function beginPinch()
+      if pinch or count() < 2 then return end
+      local ids = {}
+      for id in pairs(fingers) do ids[#ids + 1] = id end
+      local a, b = fingers[ids[1]], fingers[ids[2]]
+      local dx, dy = a.x - b.x, a.y - b.y
+      local gap = math.sqrt(dx * dx + dy * dy)
+      if gap < 16 then return end
+      pinch = { a = ids[1], b = ids[2], gap = gap }
+    end
+
+    local function updatePinch()
+      if not pinch then return false end
+      local a, b = fingers[pinch.a], fingers[pinch.b]
+      if not (a and b) then pinch = nil; return false end
+      local dx, dy = a.x - b.x, a.y - b.y
+      local gap = math.sqrt(dx * dx + dy * dy)
+      local moved = gap - pinch.gap
+      if math.abs(moved) < PINCH_STEP then return false end
+      pinch.gap = gap
+      return setGrid(moved > 0 and "big" or "classic")
+    end
+
+    mod.hooks:wrap("input.pointer", function(next, game, ev)
+      if not (ev and touchOn() and onTop(game)) then return next(game, ev) end
+
+      if ev.phase == "pressed" then
+        if not ev.insideGame then return next(game, ev) end
+        fingers[ev.id] = { x = ev.gameX, y = ev.gameY,
+                           x0 = ev.gameX, y0 = ev.gameY, moved = false }
+        beginPinch()
+        return next(game, ev)
+      end
+
+      local f = fingers[ev.id]
+      if not f then return next(game, ev) end
+
+      if ev.phase == "moved" then
+        f.x, f.y = ev.gameX, ev.gameY
+        if math.abs(f.x - f.x0) > TAP_SLOP
+           or math.abs(f.y - f.y0) > TAP_SLOP then
+          f.moved = true
+        end
+        if count() >= 2 then
+          if not pinch then beginPinch() end
+          if updatePinch() then return true end
+          return next(game, ev)
+        end
+        -- One finger dragged up or down pages the list. Whole pages rather
+        -- than pixels because the grid has no half-scrolled state to draw:
+        -- it pages, and pretending otherwise would need a scroll offset
+        -- that every other part of this screen would then have to respect.
+        local dy = f.y - f.y0
+        local steps = math.floor(math.abs(dy) / DRAG_STEP)
+        if steps > 0 then
+          steps = math.min(steps, DRAG_MAX)
+          f.y0 = f.y
+          local dir = dy > 0 and -1 or 1
+          local moved = false
+          for _ = 1, steps do
+            if live.pageBy and live.pageBy(dir) then moved = true end
+          end
+          if moved then return true end
+        end
+        return next(game, ev)
+      end
+
+      if ev.phase == "released" or ev.phase == "cancelled" then
+        local wasPinch = pinch ~= nil
+        fingers[ev.id] = nil
+        if pinch and (ev.id == pinch.a or ev.id == pinch.b) then pinch = nil end
+        if ev.phase == "cancelled" or f.moved or wasPinch then
+          return next(game, ev)
+        end
+        -- A clean tap. The FIRST one on a cell only moves the cursor
+        -- there; a second on the same cell is A. On a phone a cell is a
+        -- few millimetres, and opening on the first touch means opening
+        -- whatever you happened to land on.
+        local slot = live.slotAt and live.slotAt(f.x, f.y)
+        if slot == nil then return next(game, ev) end
+        if live.touchTap and live.touchTap(slot) then return true end
+        return next(game, ev)
+      end
+
+      return next(game, ev)
+    end)
+  end
+
   mod.content.screens:register(SCREEN, { new = function(game)
-    return newDex(game)
+    local screen = newDex(game)
+    live = screen
+    return screen
   end })
 
   mod.exports.filters = FILTERS

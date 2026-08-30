@@ -1704,4 +1704,65 @@ do
     "una prerelease piu' vecchia si aggiorna comunque")
 end
 
+-- ------- IL TOCCO
+--
+-- Spento di default, e finche' e' spento la griglia e' quella di prima: il
+-- gancio esce prima di guardare qualsiasi cosa. E' tutto qui "tocco
+-- disabilitato = formato standard", senza un ramo apposta.
+--
+-- Le due azioni passano per lo STESSO codice dei tasti -- il cursore e'
+-- `self.index`, aprire e' `self:open` -- perche' un secondo sistema di
+-- navigazione in parallelo e' come si finisce con due cursori che non
+-- vanno d'accordo.
+do
+  local optStore = loader.modOptions and loader.modOptions.gen3_dex
+  local s = factory.new(fakeGame(3, 0))
+  local per = s.layout and (function()
+    local L = s.layout(); return (L.cols or 4) * (L.rows or 1)
+  end)() or 4
+
+  -- un dito diventa una cella con la stessa aritmetica del disegno,
+  -- letta al contrario: cellRect dice dove sta lo slot, slotAt chi c'e'
+  for slot = 0, math.min(3, per - 1) do
+    local x, y = s.cellRect(slot)
+    local L = s.layout()
+    T.eq(s.slotAt(x + L.cell / 2, y + L.cell / 2), slot,
+      "il centro della cella " .. slot .. " torna alla cella " .. slot)
+  end
+  local L = s.layout()
+  T.check(s.slotAt(L.gridX - 4, L.gridY - 4) == nil,
+    "un dito sopra e a sinistra della griglia non e' su nessuna cella")
+
+  -- il PRIMO tocco su una cella sposta solo il cursore, il SECONDO apre:
+  -- su un telefono una cella e' pochi millimetri, e aprire al primo tocco
+  -- vuol dire aprire quello che ti capita sotto il dito
+  s.index = 0
+  T.check(s.touchTap(1) == true, "il primo tocco su un'altra cella fa qualcosa")
+  T.eq(s.index, 1, "e quel qualcosa e' spostarci il cursore, non aprire")
+  T.check(s.choice == nil, "niente si e' aperto al primo tocco")
+  s.touchTap(1)
+  T.check(s.choice ~= nil, "il secondo tocco sulla stessa cella apre")
+
+  -- una cella oltre la fine della lista non fa niente invece di sbagliare
+  T.check(s.touchTap(9999) == false, "un tocco fuori dalla lista non fa nulla")
+
+  -- il trascinamento pagina, e su una lista che sta in una pagina sola non
+  -- ha niente da paginare
+  local s2 = factory.new(fakeGame(3, 0))
+  local n = #s2.entries
+  s2.index = 0
+  if n > per then
+    T.check(s2.pageBy(1) == true, "trascinare in su cambia pagina")
+    T.check(s2.index >= per, "e il cursore va nella pagina dopo")
+    T.check(s2.pageBy(-1) == true, "e in giu' si torna")
+    T.eq(s2.index, 0, "alla prima")
+    T.check(s2.pageBy(-1) == false, "e sotto la prima non si scende")
+  else
+    T.check(s2.pageBy(1) == false,
+      "con una pagina sola non c'e' niente da paginare")
+  end
+
+  if optStore then optStore.touch = nil end
+end
+
 T.finish("gen3_dex")
