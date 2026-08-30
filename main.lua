@@ -446,16 +446,28 @@ return function(mod)
     -- kind = "dex" tells the hook which screen is asking; trueColor comes
     -- back true when the replacement is full-colour art, which must NOT be
     -- put through the shade remap below.
+    --
+    -- TWO CANDIDATES, IN ORDER, and the order is the whole lesson of the box
+    -- mod's 1.8.1-beta.1 -- which this screen shipped without.
+    --
+    -- The seam can hand back a path this screen cannot draw. A mod that
+    -- renders a Pokemon some other way -- an atlas, a sheet, something that
+    -- is not a plain 2D image file -- legitimately answers `pokemon.sprite`
+    -- with a path Assets.image loads nothing from, and 0.16.0 read that as
+    -- "no picture" and drew an empty cell. With such a mod installed that is
+    -- the WHOLE GRID empty: a hundred and fifty blank squares over a scene,
+    -- which is what "Pokedex rotto non si vedono sprite" looks like.
+    --
+    -- So a candidate that does not produce an image is not an answer, and
+    -- the species record is tried next. Assets.image can also return nil
+    -- WITHOUT throwing, which is why the image is tested and not just the
+    -- pcall.
     local picCache = {}
-    local function picPath(def)
-      local ok, path, trueColor = pcall(function()
-        return require("src.pokemon.Sprites").path(
-          game.data, def.id, "front", { kind = "dex" })
-      end)
-      if ok and type(path) == "string" and path ~= "" then
-        return path, trueColor and true or false
-      end
-      return def.spriteFront, false
+    local function tryImage(path)
+      if type(path) ~= "string" or path == "" then return nil end
+      local ok, img = pcall(Assets.image, path)
+      if ok and img then return img end
+      return nil
     end
 
     local function picOf(def)
@@ -464,13 +476,19 @@ return function(mod)
         if hit == false then return nil end
         return hit.img, hit.trueColor
       end
-      local path, trueColor = picPath(def)
-      if not path then
-        picCache[def.id] = false
-        return nil
+      -- 1. what the hook says this species should look like
+      local ok, hooked, hookedTrue = pcall(function()
+        return require("src.pokemon.Sprites").path(
+          game.data, def.id, "front", { kind = "dex" })
+      end)
+      local img = ok and tryImage(hooked) or nil
+      local trueColor = img and hookedTrue and true or false
+      -- 2. the species record, which is what the game shipped with
+      if not img then
+        img = tryImage(def.spriteFront)
+        trueColor = false
       end
-      local ok, img = pcall(Assets.image, path)
-      if not (ok and img) then
+      if not img then
         picCache[def.id] = false
         return nil
       end
@@ -1440,9 +1458,22 @@ return function(mod)
       local okDim, iw, ih = pcall(function()
         return img:getWidth(), img:getHeight()
       end)
-      if not (okDim and iw and iw > 0) then return false end
-      local scale = math.max(1, math.floor(h / ih))
+      if not (okDim and iw and iw > 0 and ih and ih > 0) then return false end
+      -- ------- HOW BIG: never "as tall as the canvas"
+      --
+      -- `floor(h / ih)` reads as "fill the height", and on the full-screen
+      -- canvas the height is 576: one of Kenney's 64-pixel brick tiles came
+      -- out at NINE times life size -- four bricks on a phone -- and a box
+      -- mod strip at four. "sto sfondi fanno cacare, si vedono malissimo",
+      -- and it was exactly this line.
+      --
+      -- A tile has a natural size and it is the Game Boy's: one pixel per
+      -- pixel on a 160-wide screen, two on BIG's 320, and no more. The
+      -- scale comes from the WIDTH being filled and nothing else, so a tall
+      -- canvas gets MORE tiles rather than bigger ones.
+      local scale = math.max(1, math.min(2, math.floor(w / 160)))
       local span = iw * scale
+      local rows = ih * scale
       local ox = 0
       if (entry.speed or 0) > 0 then
         ox = math.floor(t * entry.speed) % span
@@ -1451,11 +1482,17 @@ return function(mod)
       end
       return pcall(function()
         love.graphics.setColor(1, 1, 1, 1)
-        local x = -ox
-        while x < w do
-          love.graphics.draw(img, x, 0, 0, scale, scale)
-          x = x + span
-        end
+        -- and DOWN as well as across: a tile that does not reach the foot
+        -- of the screen used to leave the rest white
+        local y = 0
+        repeat
+          local x = -ox
+          while x < w do
+            love.graphics.draw(img, x, y, 0, scale, scale)
+            x = x + span
+          end
+          y = y + rows
+        until y >= h
         love.graphics.setColor(1, 1, 1, 1)
       end)
     end

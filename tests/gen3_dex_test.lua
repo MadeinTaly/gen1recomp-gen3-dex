@@ -1268,6 +1268,33 @@ do
     local okReal, want = pcall(Assets.image, hooked)
     T.check(okReal and want and img == want,
       "e quello che torna il gancio e' quello che si disegna")
+
+    -- ...ma un gancio che risponde con qualcosa che NON e' un'immagine non
+    -- svuota la cella: si ricade sul record della specie.
+    --
+    -- Una mod che disegna i Pokemon in un altro modo -- un atlante, un
+    -- foglio, roba che Assets.image non carica -- risponde legittimamente
+    -- con un percorso che qui non si puo' disegnare, e la 0.16.0 lo leggeva
+    -- come "nessuna figura": centocinquanta celle vuote sopra la scena.
+    -- nel banco di prova Assets.image non fallisce mai (lo stub restituisce
+    -- un'immagine finta per qualsiasi percorso), quindi il fallimento va
+    -- messo a mano: e' quello che fa il dispositivo vero con un file che
+    -- non c'e'
+    local BAD = "no/such/sprite/at/all.png"
+    local realImage = Assets.image
+    Assets.image = function(path)
+      if path == BAD then return nil end
+      return realImage(path)
+    end
+    Sprites.path = function() return BAD, false end
+    local s4 = factory.new(fakeGame(3, 0))
+    local fallback = s4.picOf(Data.pokemon[ordered[1]])
+    Sprites.path = real
+    Assets.image = realImage
+    local okVanilla, vanilla = pcall(Assets.image,
+      Data.pokemon[ordered[1]].spriteFront)
+    T.check(okVanilla and vanilla and fallback == vanilla,
+      "un percorso che non si carica ricade sulla figura del gioco")
   end
 
   -- ------- le due colonne del pannello non si toccano

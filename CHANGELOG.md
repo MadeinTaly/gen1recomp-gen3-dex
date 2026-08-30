@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.17.2 -- the empty grid, and the backdrops at the size they were drawn
+
+**Every cell was empty with a sprite pack installed.** 0.16.0 started
+resolving pictures through `Sprites.path`, which is right -- it is the seam a
+pack shadows -- but it took whatever came back as the only answer. A mod that
+renders Pokemon some other way legitimately answers with a path this screen
+cannot load, and the screen drew a hundred and fifty blank squares over a
+scene. There are two candidates now, in order: what the hook says, and then
+the species record. A candidate that does not produce an image is not an
+answer. The box mod learned this in its own 1.8.1; this one had not.
+
+**A backdrop is never magnified past twice life size.** The scale came from
+the height of the canvas, and in full screen that is 576: one of Kenney's
+64-pixel brick tiles came out at NINE times -- four bricks on a phone -- and
+a borrowed box strip at four. It comes from the width now, capped at two,
+and a tile repeats DOWN the screen as well as across instead of being blown
+up to reach the bottom.
+
 ## 0.17.1 -- the popup closed the app
 
 0.17.0 called `fitTo` inside the WHAT'S NEW popup. That is the name the box
