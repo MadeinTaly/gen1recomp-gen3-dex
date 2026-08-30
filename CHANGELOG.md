@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.19.1 -- the pinch was writing into the void
+
+**`mod.options` is read-only.** It has `define` and `get` and nothing else
+(`src/mods/Loader.lua:1493-1510`). The two-finger pinch called
+`mod.options:set("grid", ...)` -- a function that does not exist -- inside
+its own `pcall`, so it failed silently every time and the gesture appeared
+to do nothing at all. It was writing into the void and the grid never heard
+about it.
+
+The choice lives in the SAVE now and is read back ahead of the option, which
+is the arrangement the backdrop here has always used. `mod.save` is the
+writable one. The option stays what a fresh save starts from, and because
+the pinch writes where the screen reads, the size it leaves you on survives
+leaving the screen -- which was the point of driving the existing setting
+instead of inventing a zoom.
+
+**The touch landed on the wrong cell.** `ev.gameX/gameY` are LOVE window
+units -- the viewport only ever subtracts an origin from them
+(`src/render/GameViewport.lua:127-133`, no scaling anywhere) -- while the
+cells are laid out on this screen's own surface, which something then scales
+into the window. Feeding one to the other asks which cell sits at pixel 700
+of a 296-wide screen. Two scalers, two answers: on Gold this screen scales
+itself and now records the numbers it used, and on Gen 1 `Renderer:frameRects`
+hands back the UI surface's origin and draw scale. The finger is brought onto
+the surface before anything is asked of it.
+
+Four new checks, including the one that matters most: the size a pinch leaves
+you on is still there when you come back.
+
 ## 0.19.0 -- fingers, and the Unown row again
 
 **A sprite pack was overruling the Unown form.** 0.17.3 only took the form

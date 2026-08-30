@@ -1762,6 +1762,32 @@ do
       "con una pagina sola non c'e' niente da paginare")
   end
 
+  -- ------- IL PINCH CAMBIA DAVVERO LA GRIGLIA
+  --
+  -- `mod.options` e' di sola LETTURA: ha `define` e `get` e nient'altro
+  -- (src/mods/Loader.lua:1493-1510). La prima versione del pinch chiamava
+  -- `mod.options:set`, che non esiste, dentro un pcall -- quindi falliva in
+  -- silenzio e il gesto sembrava non fare niente. La scelta vive nel SAVE,
+  -- che si puo' scrivere, e viene letta prima dell'opzione.
+  do
+    local store = loader.modSave and loader.modSave.gen3_dex
+    local had = store and store.grid
+    local s3 = factory.new(fakeGame(3, 0))
+    if s3.setGridChoice and s3.gridChoice then
+      local from = s3.gridChoice()
+      local to = from == "big" and "classic" or "big"
+      T.check(s3.setGridChoice(to) == true, "il pinch cambia la griglia")
+      T.eq(s3.gridChoice(), to, "e la scelta e' quella nuova")
+      T.check(s3.setGridChoice(to) == false,
+        "chiedere la misura che hai gia' non e' un cambiamento")
+      -- e la scelta sopravvive alla schermata, perche' sta nel save
+      local s4 = factory.new(fakeGame(3, 0))
+      T.eq(s4.gridChoice(), to, "e sopravvive a uscire e rientrare")
+      s3.setGridChoice(from)
+    end
+    if store then store.grid = had end
+  end
+
   if optStore then optStore.touch = nil end
 end
 

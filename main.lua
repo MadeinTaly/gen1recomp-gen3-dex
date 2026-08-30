@@ -246,9 +246,34 @@ return function(mod)
 
   -- ...and 28 when GRID says CLASSIC: same question, same two answers, on
   -- any surface. See fullLayout below.
-  local function fullCell()
+  -- ------- WHICH GRID, AND WHERE THAT CHOICE LIVES
+  --
+  -- The SAVE first, the option second -- the same arrangement the backdrop
+  -- already uses here, and for the same reason: `mod.options` is
+  -- READ-ONLY. It has `define` and `get` and nothing else
+  -- (src/mods/Loader.lua:1493-1510), so `mod.options:set` was a call to a
+  -- function that does not exist, swallowed by its own pcall. That is why
+  -- the pinch appeared to do nothing at all: it was writing into the void
+  -- and the grid never heard about it.
+  --
+  -- `mod.save` is the writable one, so a pinch lands there and is read back
+  -- ahead of the option. The option stays what a fresh save starts from.
+  local function gridChoice()
+    local okS, saved = pcall(function() return mod.save:get("grid") end)
+    if okS and (saved == "big" or saved == "classic") then return saved end
     local ok, value = pcall(function() return mod.options:get("grid") end)
-    return (ok and value == "classic") and 28 or FULL_CELL
+    return (ok and value) or "big"
+  end
+
+  local function setGridChoice(value)
+    if value ~= "big" and value ~= "classic" then return false end
+    if gridChoice() == value then return false end
+    local ok = pcall(function() mod.save:set("grid", value) end)
+    return ok and gridChoice() == value
+  end
+
+  local function fullCell()
+    return gridChoice() == "classic" and 28 or FULL_CELL
   end
 
   local function fullOn()
@@ -305,8 +330,7 @@ return function(mod)
 
   local function wanted()
     if fullOn() then return fullLayout() end
-    local ok, value = pcall(function() return mod.options:get("grid") end)
-    return LAYOUT[(ok and value) or "big"] or LAYOUT.big
+    return LAYOUT[gridChoice()] or LAYOUT.big
   end
 
   -- What actually fits the surface being drawn RIGHT NOW, which is not the
@@ -508,6 +532,37 @@ return function(mod)
       return r * gridCols() + c
     end
     self.slotAt = slotAt
+    self.gridChoice = gridChoice
+    self.setGridChoice = setGridChoice
+
+    -- ------- A WINDOW POINT, BROUGHT ONTO THE SURFACE THE CELLS ARE ON
+    --
+    -- `ev.x/y` are LOVE window units, and so are `gameX/gameY`: the
+    -- viewport only ever SUBTRACTS an origin from them
+    -- (src/render/GameViewport.lua:127-133, no scaling anywhere). The cells
+    -- are laid out on this screen's own surface, and something scales that
+    -- surface into the window -- so feeding window units to slotAt asks
+    -- which cell sits at pixel 700 of a 296-wide screen.
+    --
+    -- Two scalers, two answers. On Gold this screen scales itself in
+    -- drawWidescreen and records the numbers it used. On Gen 1 the renderer
+    -- does it, and frameRects hands back the UI surface's origin and draw
+    -- scale -- uox/uoy and Ux/Uy -- which is this transform read forwards.
+    local function toUI(x, y)
+      local t = self.touchXform
+      if t and t.sx and t.sx > 0 and t.sy and t.sy > 0 then
+        return (x - t.ox) / t.sx, (y - t.oy) / t.sy
+      end
+      local okR, R = pcall(require, "src.render.Renderer")
+      if not okR then return x, y end
+      local ok, r = pcall(function() return R:frameRects() end)
+      if ok and type(r) == "table" and r.Ux and r.Ux > 0
+         and r.Uy and r.Uy > 0 then
+        return (x - (r.uox or 0)) / r.Ux, (y - (r.uoy or 0)) / r.Uy
+      end
+      return x, y
+    end
+    self.toUI = toUI
 
     -- ------- what a finger is allowed to do
     --
@@ -1187,6 +1242,10 @@ return function(mod)
       local scale = (L.full and fit) or math.max(1, math.floor(fit))
       local ox = math.floor((winW - L.w * scale) / 2)
       local oy = math.floor((winH - L.h * scale) / 2)
+      -- recorded for the touch layer: on Gold this screen scales ITSELF,
+      -- so this is the only place that knows how a window point maps back
+      -- onto the surface the cells were laid out on
+      self.touchXform = { ox = ox, oy = oy, sx = scale, sy = scale }
       love.graphics.push()
       love.graphics.translate(ox, oy)
       love.graphics.scale(scale, scale)
@@ -2730,12 +2789,7 @@ return function(mod)
     -- picks between them. Spreading asks for the bigger cell, pinching for
     -- the smaller, and because it is that same setting the choice survives
     -- leaving the screen -- there is no second, hidden zoom to reconcile.
-    local function setGrid(value)
-      local ok, cur = pcall(function() return mod.options:get("grid") end)
-      if ok and cur == value then return false end
-      local set = pcall(function() mod.options:set("grid", value) end)
-      return set
-    end
+    local setGrid = setGridChoice
 
     local function beginPinch()
       if pinch or count() < 2 then return end
@@ -2765,8 +2819,10 @@ return function(mod)
 
       if ev.phase == "pressed" then
         if not ev.insideGame then return next(game, ev) end
-        fingers[ev.id] = { x = ev.gameX, y = ev.gameY,
-                           x0 = ev.gameX, y0 = ev.gameY, moved = false }
+        -- onto THIS screen's surface first: gameX/gameY are window units
+        -- and the cells are not laid out in window units
+        local ux, uy = live.toUI(ev.gameX, ev.gameY)
+        fingers[ev.id] = { x = ux, y = uy, x0 = ux, y0 = uy, moved = false }
         beginPinch()
         return next(game, ev)
       end
@@ -2775,7 +2831,7 @@ return function(mod)
       if not f then return next(game, ev) end
 
       if ev.phase == "moved" then
-        f.x, f.y = ev.gameX, ev.gameY
+        f.x, f.y = live.toUI(ev.gameX, ev.gameY)
         if math.abs(f.x - f.x0) > TAP_SLOP
            or math.abs(f.y - f.y0) > TAP_SLOP then
           f.moved = true
