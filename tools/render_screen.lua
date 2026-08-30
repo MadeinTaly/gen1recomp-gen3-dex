@@ -108,14 +108,15 @@ function G.polygon(mode, ...)
   end
 end
 
--- ------- the Pokemon themselves, and the shader that keys them
+-- ------- the Pokemon themselves, and the shader that colours them
 --
--- A front pic is a four-shade picture with an OPAQUE lightest shade behind
--- it, and over a scene that shade is a white card under every caught
--- Pokemon. The fix draws the picture through PaletteFX.keyedShader, which
--- maps the four shades to the species' colours and keys shade 0 away in one
--- pass -- and none of that is visible from a stub that ignores both images
--- and shaders. So this one does neither.
+-- Over a scene there are no per-cell palette zones any more: the species'
+-- four colours are sent to the PICTURE, through PaletteFX.shader. None of
+-- that is visible from a stub that ignores images and shaders, so this one
+-- does neither -- and it maps shades exactly as the real one does, by the
+-- red channel, KEEPING the alpha it was given. (The keyed variant next to
+-- it in the engine zeroes shade 0; using it here would show holes the game
+-- does not draw.)
 --
 -- RAW points at a dump made by the box mod's tool:
 --   python3 mods/gen3_box/tools/check_wallpaper.py <dir of pngs> --raw <out>
@@ -163,8 +164,7 @@ local function through(r, g, b, a)
   if not c then return r, g, b, a end
   local pick = (r > 0.83 and c.c0) or (r > 0.5 and c.c1)
     or (r > 0.17 and c.c2) or c.c3
-  local keyed = (r > 0.83 and g > 0.83 and b > 0.83) and 0 or a
-  return pick[1], pick[2], pick[3], keyed
+  return pick[1], pick[2], pick[3], a
 end
 
 function G.draw(img, x, y, _, sx, sy)
@@ -278,8 +278,12 @@ for name in (os.getenv("SCENES") or "SKY,NIGHT,VOLCANO,SAKURA"):gmatch("[^,]+") 
   scenes[#scenes + 1] = name
 end
 
+-- NEWS=<n> disegna il popup delle novita' su quella pagina
+local NEWS = tonumber(os.getenv("NEWS") or "0")
+
 for _, name in ipairs(scenes) do
   dexSave.scene = name
+  screen.news = NEWS > 0 and { page = NEWS } or nil
   screen.view = (os.getenv("PANEL") == "1") and { row = 2 } or nil
   -- PICK=1 draws the chooser: no panel, the screen itself wearing the scene
   if os.getenv("PICK") == "1" then

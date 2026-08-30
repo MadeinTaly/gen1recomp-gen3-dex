@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.17.0 -- a popup that says what changed, and where the thing is
+
+Every release so far has added something behind a menu or an option -- the
+backdrops, the chooser, FULL SCREEN -- and none of it announces itself. A
+screen that looks the same as last week is a screen where nothing happened.
+
+**WHAT'S NEW.** The first time the Pokedex opens after an update, or after
+you install it, a popup says what changed and, more to the point, WHERE the
+thing is: which panel, which option row, which keys. Six pages, ordered by
+how hard the feature is to reach -- what you can see straight away first,
+what needs two menus last -- with an accent colour on the line that names
+the thing and on the contest. `A` turns the page, `B` closes, and it does
+not come back until the next version.
+
+It is written in Game Boy pixels and drawn at whole scale, so BIG and full
+screen get the same page twice the size rather than the same page in a
+corner in tiny text. The suite measures every line against the panel it is
+drawn in: a page that overflows is exactly the kind of fault a test that
+only checks "it did not crash" never sees.
+
+`SELECT -> WHAT'S NEW` reopens it whenever you like.
+
+**CONTEST.md**, the other half of it: the backdrop contest is now written
+down. A tile of 64x64 that repeats, or a 160x144 scene; CC0, CC BY or MIT;
+your name in the chooser next to your work. The rules are not the box mod's
+-- a list backdrop is looked at through a hundred and fifty cells rather
+than twenty, so texture wins where composition would win on a box.
+
 ## 0.16.0 -- the white card under the caught ones, and the artist's sprites
 
 **The white card is gone.** A caught Pokemon sat on a white rectangle over

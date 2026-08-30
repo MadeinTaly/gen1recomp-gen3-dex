@@ -33,6 +33,19 @@ loader.modOptions = loader.modOptions or {}
 loader.modOptions.gen3_dex = loader.modOptions.gen3_dex or {}
 local store = loader.modOptions.gen3_dex
 
+-- ------- WHAT'S NEW, marked as already read
+--
+-- Il popup si apre sul primo schermo costruito dopo un aggiornamento e si
+-- prende tutti i tasti finche' e' aperto -- che e' il suo scopo, e che
+-- farebbe finire ogni pressione di questo file su una pagina di note. Il
+-- salvataggio dice che sono state lette, come farebbe il secondo avvio; il
+-- blocco in fondo lo azzera per provare il popup.
+local NEWS_VERSION = "0.17.0"
+loader.modSave = loader.modSave or {}
+loader.modSave.gen3_dex = loader.modSave.gen3_dex or {}
+local newsStore = loader.modSave.gen3_dex
+newsStore.newsSeen = NEWS_VERSION
+
 -- ------- a save to look at
 --
 -- Three states, because the screen draws three: owned, seen, and never
@@ -1389,6 +1402,95 @@ do
   store.grid = "big"
 
   store.fullscreen = false
+end
+
+-- ------- WHAT'S NEW
+--
+-- Stessa forma della mod delle box: si apre da solo la prima volta dopo un
+-- aggiornamento, si prende i tasti mentre e' aperto, si chiude e non torna.
+-- E ogni riga deve ENTRARE nel riquadro: una pagina di testo che sborda e'
+-- il difetto che solo una misura vede.
+do
+  local g = fakeGame(OWNED, SEENX)
+  newsStore.newsSeen = nil
+  local s = factory.new(g)
+  T.check(s.news ~= nil, "senza note lette il popup si apre da solo")
+  T.eq(s.news.page, 1, "dalla prima pagina")
+
+  -- giu' non e' un tasto del popup, quindi non deve fare NIENTE: ne'
+  -- girare pagina ne' muovere il cursore dietro
+  local was = s.index
+  press("down"); s:update()
+  T.eq(s.index, was, "mentre e' aperto il cursore della lista non si muove")
+  T.eq(s.news.page, 1, "e la pagina resta quella")
+
+  press("a"); s:update()
+  T.eq(s.news.page, 2, "A gira pagina")
+  press("left"); s:update()
+  T.eq(s.news.page, 1, "e sinistra torna indietro")
+
+  for _ = 1, #s.newsPages do
+    if s.news then press("a"); s:update() end
+  end
+  T.check(s.news == nil, "A sull'ultima pagina chiude")
+  T.eq(newsStore.newsSeen, s.newsVersion,
+    "e il salvataggio si segna la versione letta")
+
+  local s2 = factory.new(g)
+  T.check(s2.news == nil, "riaprendo la schermata non torna")
+
+  -- dal pannello VIEW si rilegge quando si vuole
+  local found = nil
+  for _, row in ipairs(s2.viewRows()) do
+    if row.label == "WHAT'S NEW" then found = row end
+  end
+  T.check(found ~= nil, "e c'e' la riga WHAT'S NEW nel pannello VIEW")
+  if found then
+    found.open()
+    T.check(s2.news ~= nil, "che lo riapre")
+    press("b"); s2:update()
+    T.check(s2.news == nil, "B chiude da qualsiasi pagina")
+  end
+
+  local x, y, w, h, k = s2.newsRect()
+  local L = s2.layout()
+  T.check(x >= 0 and y >= 0 and x + w <= L.w and y + h <= L.h,
+    "il riquadro sta dentro la superficie")
+  local inner = s2.newsInner()
+  h = math.floor(h / k)
+  local tooWide, tooTall = {}, {}
+  for i, page in ipairs(s2.newsPages) do
+    T.check(Font.width(page.title) <= inner,
+      "il titolo della pagina " .. i .. " ci sta")
+    local rows = 0
+    for _, entry in ipairs(page.lines) do
+      local text = type(entry) == "table" and entry[1] or entry
+      for _, line in ipairs(s2.wrapNews(text, inner)) do
+        rows = rows + 1
+        if Font.width(line) > inner then
+          tooWide[#tooWide + 1] = ("pagina %d: %s"):format(i, line)
+        end
+      end
+    end
+    if 14 + rows * 10 + 12 > h then
+      tooTall[#tooTall + 1] = ("pagina %d: %d righe"):format(i, rows)
+    end
+  end
+  T.eq(#tooWide, 0, "nessuna riga sborda dal riquadro (" ..
+    table.concat(tooWide, "; ") .. ")")
+  T.eq(#tooTall, 0, "e nessuna pagina e' piu' lunga del riquadro (" ..
+    table.concat(tooTall, "; ") .. ")")
+
+  local all = {}
+  for _, page in ipairs(s2.newsPages) do
+    for _, entry in ipairs(page.lines) do
+      all[#all + 1] = type(entry) == "table" and entry[1] or entry
+    end
+  end
+  local blob = table.concat(all, " ")
+  T.check(blob:find("THEME"), "le note dicono dove si cambia lo sfondo")
+  T.check(blob:find("OPTIONS"), "e dove si accende il pieno schermo")
+  T.check(blob:find("CONTEST"), "e che il contest esiste")
 end
 
 T.finish("gen3_dex")

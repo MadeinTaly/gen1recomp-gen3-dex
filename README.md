@@ -38,8 +38,19 @@ file.
 | D-pad | move the cursor |
 | **A** | `DATA` / `CRY` / `AREA` — see below |
 | **START** | jump a page |
-| **SELECT** | filter: `ALL` / `OWNED` / `MISSING` / `SEEN ONLY` |
+| **SELECT** | open the `VIEW` panel: the filter, the backdrop chooser and `WHAT'S NEW` |
 | **B** | out |
+
+## WHAT'S NEW
+
+Most of what this mod does lives behind a menu or an option — the backdrops,
+`FULL SCREEN`, the filter — and a screen that looks the same as last week is a
+screen where nothing happened. So the first time the Pokédex opens after an
+update, or after you install it, a **WHAT'S NEW** popup says what changed and
+**where the thing is**: which panel, which option row, which keys. Six pages,
+ordered by how hard the feature is to reach, with the accent colour on the line
+that names it. `A` turns the page, `B` closes, and it does not come back until
+the next version — `SELECT → WHAT'S NEW` reopens it whenever you like.
 
 **START → MODS → Gen 3 Dex → OPTIONS..**
 
@@ -51,7 +62,7 @@ file.
 | `A OPENS` | `MENU` / `DATA` | the three-way menu, or straight to the species page |
 | `OW SPRITES` | on / off | draw Wilds of Kanto's overworld sprites in the `CLASSIC` grid (on by default; does nothing without that mod — see below) |
 | `FULL SCREEN` | on / off | takes the shape of the device instead of a Game Boy screen and spends the room on **more rows** — as many as fit at whatever cell `GRID` picked (`CLASSIC` fits about four times as many entries as `BIG`). Works on Gold too |
-| `BACKDROP` | `SCENE` / `SOFT` / `PAPER` / `MINT` / `PEACH` / `WHITE` | what is behind the list. `SCENE` (the default) is one of **fourteen**: six drawn here, and eight CC0 tiles by Kenney, cron, Gabottles, caeles and ZaninDevelopers. Chosen in game with **SELECT → A on THEME**. With [gen3_box](https://github.com/MadeinTaly/gen1recomp-gen3-boxes) 1.15.0+ installed its wallpapers join the same chooser — 26 places and 103 backdrops between the two |
+| `BACKDROP` | `SCENE` / `SOFT` / `PAPER` / `MINT` / `PEACH` / `WHITE` | what is behind the list. `SCENE` (the default) is one of **fourteen**: six drawn here, and eight CC0 tiles by Kenney, cron, Gabottles, caeles and ZaninDevelopers. Chosen in game with **SELECT → A on THEME**: up and down pick the place, left and right the artist, `A` keeps it. Your own can ship here too — [CONTEST.md](CONTEST.md) says how. With [gen3_box](https://github.com/MadeinTaly/gen1recomp-gen3-boxes) 1.15.0+ installed its wallpapers join the same chooser — 26 places and 103 backdrops between the two |
 
 ## Where does it live
 

@@ -1062,6 +1062,13 @@ return function(mod)
       local n = #self.entries
       local per = perPage()
 
+      -- WHAT'S NEW owns every key while it is open: a popup you can walk
+      -- out from behind is a popup nobody reads
+      if self.news then
+        self.updateNews()
+        return
+      end
+
       -- the choice takes the input while it is up
       if self.choice then
         local c = self.choice
@@ -1711,11 +1718,250 @@ return function(mod)
           end,
         }
       end
+      rows[#rows + 1] = {
+        label = "WHAT'S NEW",
+        value = function() return self.newsVersion end,
+        open = function()
+          self.view = nil
+          self.openNews()
+        end,
+      }
       return rows
     end
     self.viewRows = viewRows
     self.handsFor = handsFor
     self.sceneList = sceneList
+
+    -- ------- WHAT'S NEW: the popup nobody asked for and everybody needed
+    --
+    -- Three releases added a backdrop per Pokedex, a full-screen list and a
+    -- contest anybody can enter, and every one of them lives behind a menu
+    -- or an option: a player who never opens OPTIONS never learns that FULL
+    -- SCREEN exists. So, once per version, on the first open after an
+    -- update or an install, the screen says what changed and WHERE it is --
+    -- pages ordered by how hard the thing is to reach, because that is the
+    -- order in which somebody stops reading. It is in the VIEW panel too,
+    -- so it can be read again on purpose.
+    --
+    -- Same shape, same keys and the same accent as the box mod's, down to
+    -- the wrapping: a player with both mods learns this once.
+    local NEWS_VERSION = "0.17.0"
+    local NEWS_ACCENT = { 32, 96, 208 }
+    local NEWS = {
+      {
+        title = "BACKDROPS",
+        lines = {
+          { "103 backdrops", true },
+          { "behind the list.", true },
+          { "" },
+          { "Scenes drawn here" },
+          { "and tiles by nine" },
+          { "artists." },
+          { "" },
+          { "Next page: how" },
+          { "to change one." },
+        },
+      },
+      {
+        title = "SET A BACKDROP",
+        lines = {
+          { "SELECT opens the" },
+          { "VIEW panel." },
+          { "" },
+          { "A on THEME opens", true },
+          { "the chooser.", true },
+          { "" },
+          { "Up, down: scene" },
+          { "Left, right: who" },
+          { "A: keep it" },
+        },
+      },
+      {
+        title = "FULL SCREEN",
+        lines = {
+          { "The list fills", true },
+          { "your whole", true },
+          { "device, many more", true },
+          { "rows at once.", true },
+          { "" },
+          { "It is off until" },
+          { "you turn it on." },
+          { "" },
+          { "Next page: where" },
+        },
+      },
+      {
+        title = "TURN IT ON",
+        lines = {
+          { "OPTIONS, then" },
+          { "MODS, then" },
+          { "GEN 3 DEX, then", true },
+          { "FULL SCREEN.", true },
+          { "" },
+          { "GRID is there" },
+          { "too: CLASSIC fits" },
+          { "more rows, BIG" },
+          { "draws them whole." },
+        },
+      },
+      {
+        title = "THE PICTURES",
+        lines = {
+          { "No more white", true },
+          { "card under the", true },
+          { "caught ones: the", true },
+          { "scene shows.", true },
+          { "" },
+          { "A sprite pack is" },
+          { "used here now," },
+          { "Crystal art and" },
+          { "the rest." },
+        },
+      },
+      {
+        title = "THE CONTEST",
+        lines = {
+          { "Your backdrop can", true },
+          { "ship with the", true },
+          { "mod.", true },
+          { "" },
+          { "A tile of 64x64" },
+          { "that repeats, or" },
+          { "a 160x144 scene." },
+          { "" },
+          { "See CONTEST.md", true },
+          { "on the mod page." },
+        },
+      },
+    }
+
+    local function newsSeen()
+      local ok, value = pcall(function() return mod.save:get("newsSeen") end)
+      return ok and value or nil
+    end
+
+    local function closeNews()
+      self.news = nil
+      pcall(function() mod.save:set("newsSeen", NEWS_VERSION) end)
+    end
+
+    local function openNews() self.news = { page = 1 } end
+    self.openNews = openNews
+    self.closeNews = closeNews
+    self.newsPages = NEWS
+    self.newsVersion = NEWS_VERSION
+    if newsSeen() ~= NEWS_VERSION then openNews() end
+
+    -- written in CLASSIC pixels and drawn at whole scale, so BIG and full
+    -- screen get the same page twice as big rather than the same page in a
+    -- corner with tiny text
+    local function newsRect(L)
+      local k = math.max(1, math.floor(L.cell / 28))
+      local w = math.min(L.w - 8, 152 * k)
+      local h = math.min(L.h - 8, 136 * k)
+      local x = math.floor((L.w - w) / 2)
+      local y = math.floor((L.h - h) / 2)
+      return x - x % 8, y - y % 8, w, h, k
+    end
+    self.newsRect = function() return newsRect(layout(game)) end
+    local function newsInner(L)
+      local _, _, w, _, k = newsRect(L)
+      return math.floor((w - 16 * k) / k)
+    end
+    self.newsInner = function() return newsInner(layout(game)) end
+
+    local function wrapNews(text, maxW)
+      local out, line = {}, nil
+      for word in tostring(text or ""):gmatch("%S+") do
+        local try = line and (line .. " " .. word) or word
+        if Font.width(try) <= maxW or not line then
+          line = try
+        else
+          out[#out + 1] = line
+          line = word
+        end
+      end
+      out[#out + 1] = line or ""
+      return out
+    end
+    self.wrapNews = wrapNews
+
+    local function drawNews()
+      local page = NEWS[self.news and self.news.page or 1]
+      if not page then return end
+      local L = layout(game)
+      local x, y, w, h, k = newsRect(L)
+      local g = love.graphics
+      g.setColor(1, 1, 1, 1)
+      g.rectangle("fill", x, y, w, h)
+      g.setColor(0, 0, 0, 1)
+      g.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
+      g.rectangle("line", x + 2.5, y + 2.5, w - 5, h - 5)
+
+      local inner = newsInner(L)
+      local scaled = k > 1 and pcall(function()
+        g.push(); g.translate(x, y); g.scale(k, k)
+      end)
+      local ox0, oy0 = x, y
+      if scaled then ox0, oy0 = 0, 0 end
+      local step = scaled and 1 or k
+      local tx0 = ox0 + 8 * step
+      local ty = oy0 + 8 * step
+      local bottom = (scaled and (h / k) or h) + oy0
+      g.setColor(0, 0, 0, 1)
+      Font.draw(fitTo(Strings("%s %s", page.title, NEWS_VERSION), inner),
+        tx0, ty)
+      ty = ty + 14 * step
+      for _, entry in ipairs(page.lines) do
+        local text = type(entry) == "table" and entry[1] or entry
+        local hi = type(entry) == "table" and entry[2]
+        for _, line in ipairs(wrapNews(text, inner)) do
+          if ty + 8 * step <= bottom - 14 * step then
+            if hi then
+              g.setColor(NEWS_ACCENT[1] / 255, NEWS_ACCENT[2] / 255,
+                NEWS_ACCENT[3] / 255, 1)
+            else
+              g.setColor(0, 0, 0, 1)
+            end
+            Font.draw(line, tx0, ty)
+            ty = ty + 10 * step
+          end
+        end
+      end
+      g.setColor(0, 0, 0, 1)
+      local last = self.news.page >= #NEWS
+      Font.draw(fitTo(Strings("%d/%d %s", self.news.page, #NEWS,
+        last and "A:CLOSE" or "A:NEXT B:EXIT"), inner),
+        tx0, bottom - 12 * step)
+      if scaled then pcall(g.pop) end
+      -- real colours, so the rect is reported as such: otherwise the frame's
+      -- shade remap turns the accent into one of four greys
+      pcall(function()
+        if type(PaletteFX.markTrueColor) == "function" then
+          PaletteFX.markTrueColor(x, y, w, h)
+        end
+      end)
+      g.setColor(0, 0, 0, 1)
+    end
+    self.drawNews = drawNews
+
+    local function updateNews()
+      local input = game.input
+      if input:wasPressed("b") then
+        closeNews()
+      elseif input:wasPressed("a") or input:wasPressed("right")
+             or input:wasPressed("start") then
+        if self.news.page >= #NEWS then
+          closeNews()
+        else
+          self.news.page = self.news.page + 1
+        end
+      elseif input:wasPressed("left") then
+        self.news.page = math.max(1, self.news.page - 1)
+      end
+    end
+    self.updateNews = updateNews
+
 
     -- Whether a scene will actually be painted this frame: BACKDROP says
     -- SCENE, and either it is one of this mod's own or the box mod is there
@@ -2048,6 +2294,9 @@ return function(mod)
           Font.draw(c.label, bx + 16, y)
         end
       end
+
+      -- over everything, because it has taken the keys
+      if self.news then self.drawNews() end
     end
 
     return self
