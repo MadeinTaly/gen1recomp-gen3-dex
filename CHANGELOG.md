@@ -25,9 +25,19 @@ player on Gold's own Pokedex list with no way out. The engine's own caller
 passes the callback (`src/ui/gen2/BoxMenu.lua:309`); so does this one now.
 `Gen2SummaryMenu` has the same shape and the same trap.
 
-**On Gold every Pokemon was grey, caught ones included.** The colours were
-skipped on Gen 2 on the belief that "Gold colours its own pictures". It does
-not: Gold composes through `Game2`, which never runs the palette pass, so
+**On Gold every Pokemon was grey, caught ones included.** Two faults on top
+of each other. The colours were skipped on Gen 2 on the belief that "Gold
+colours its own pictures" -- and when that was lifted they were still asked
+for from the wrong table: `PaletteFX.monPal` reads the GEN 1 pack
+(`data.palettes`, `src/render/PaletteFX.lua:435-444`) and answers nil on a
+Gold boot. Gold keeps its own table and its own reader, and its own screens
+use them -- `Palettes.monColors(data.gen2Palettes, species, shiny)`
+(`src/ui/gen2/BoxMenu.lua:683-684`). Same answer shape, four colours
+lightest first. A dex row has no mon to read DVs from, so shiny is false
+here: this screen shows the species, not an individual.
+
+As for the belief itself, Gold does not colour its own pictures. It composes
+through `Game2`, which never runs the palette pass at all, so
 nothing was colouring them -- not the engine, and not this file either,
 because it went out of its way to stand aside for it. On Gen 2 the colours
 now always travel with the PICTURE, scene or no scene, which is the one

@@ -158,6 +158,41 @@ return function(mod)
     return save ~= nil and save.generation == 2
   end
 
+  -- ------- WHERE A SPECIES' FOUR COLOURS COME FROM, PER GENERATION
+  --
+  -- Not the same place, and asking the wrong one is why every Pokemon on
+  -- Gold came out grey -- caught ones included. `PaletteFX.monPal` reads
+  -- the GEN 1 pack (`data.palettes`, src/render/PaletteFX.lua:435-444) and
+  -- answers nil on a Gold boot: nil colours, no shader, four DMG greys,
+  -- and a file that believes it asked properly.
+  --
+  -- Gold keeps its own table and its own reader, and its own screens use
+  -- them: `Palettes.monColors(data.gen2Palettes, species, shiny)`
+  -- (src/ui/gen2/BoxMenu.lua:683-684). The answer has the same shape --
+  -- four colours, lightest first -- so only the question changes.
+  --
+  -- A dex row has no mon to read DVs from, so shiny is false here: this
+  -- screen shows the species, not an individual. The box mod, which does
+  -- have one, passes it.
+  local function monColours(game, species)
+    if isGen2(game) then
+      local okP, P = pcall(require, "src.world.gen2.Palettes")
+      if not (okP and type(P) == "table"
+              and type(P.monColors) == "function") then
+        return nil
+      end
+      local ok, colours =
+        pcall(P.monColors, game.data and game.data.gen2Palettes,
+              species, false)
+      return ok and colours or nil
+    end
+    -- required here rather than read as an upvalue: this helper sits above
+    -- the screen closure that holds the file's own PaletteFX
+    local okFX, FX = pcall(require, "src.render.PaletteFX")
+    if not (okFX and type(FX) == "table") then return nil end
+    return FX.monPal(game.data, species)
+  end
+
   -- ------- the summary screen, per generation
   --
   -- Gold's builtins carry a Gen2 prefix and there is no Gen2DexEntryMenu and
@@ -2433,7 +2468,7 @@ return function(mod)
               local colors = nil
               if not trueColor and e.state == "owned"
                  and (onScene or isGen2(game)) then
-                colors = PaletteFX.monPal(game.data, e.def.id)
+                colors = monColours(game, e.def.id)
               end
               paintPic(img, x + (L.cell - w) / 2, y + (L.cell - h) / 2, k,
                 colors, alpha)
