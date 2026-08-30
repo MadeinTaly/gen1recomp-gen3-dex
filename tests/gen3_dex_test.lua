@@ -726,6 +726,35 @@ do
   local kept = false
   for _, r in ipairs(shared) do if r.label == "DEXNAV" then kept = true end end
   T.check(kept, "another mod's start-menu row survives the wrap")
+
+  -- ------- SENZA POKEDEX NON C'E' NIENTE DA APRIRE
+  --
+  -- Tutti e due i menu mostrano la riga POKeDEX solo dopo che Oak lo
+  -- consegna: Gen 1 lo dice a parole (src/ui/StartMenu.lua:30), Gold la
+  -- gata su ENGINE_POKEDEX, il flag scritto a casa di Mr. Pokemon
+  -- (src/ui/gen2/StartMenu.lua:49,161-172). La PRESENZA di quella riga e'
+  -- quindi la risposta a "questo giocatore ha il Pokedex", su entrambe le
+  -- generazioni e senza che questo file sappia un numero di flag.
+  --
+  -- Prima la riga DEX GRID veniva aggiunta comunque: su un Gold appena
+  -- iniziato il mod consegnava un Pokedex ore prima che lo facesse il
+  -- gioco.
+  local noDex = Runtime.call("ui.start_menu.items", function(_, i) return i end,
+    {}, { { label = "POKéMON" }, { label = "SAVE" } })
+  T.eq(#noDex, 2, "senza la riga POKeDEX il menu resta di due voci")
+  for _, r in ipairs(noDex) do
+    T.check(tostring(r.label) ~= "DEX GRID",
+      "e la griglia non si aggiunge da sola")
+  end
+
+  -- e la riga si riconosce dall'id anche quando l'etichetta e' tradotta
+  local translated = Runtime.call("ui.start_menu.items",
+    function(_, i) return i end, {},
+    { { id = "pokedex", label = "AGENDA" }, { label = "SAVE" } })
+  local byId
+  for _, r in ipairs(translated) do if r.id == "pokedex" then byId = r end end
+  T.check(byId and type(byId.onSelect) == "function",
+    "la riga si trova per id anche con un'etichetta che non dice POKEDEX")
 end
 
 -- ------- the choice has a visible cursor

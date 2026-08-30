@@ -2552,14 +2552,40 @@ return function(mod)
     mod.hooks:wrap("ui.start_menu.items", function(next, game, items)
       local out = next(game, items)
       if type(out) ~= "table" then return out end
-      if opt("replace", true) then
-        for _, item in ipairs(out) do
-          local label = tostring(item.label or "")
-          if label:find("POK") and label:find("DEX") then
-            item.onSelect = function() mod.ui.push(game, SCREEN) end
-            return out
-          end
+
+      -- ------- THE GAME'S OWN POKEDEX ROW IS THE PERMISSION SLIP
+      --
+      -- Both start menus show that row only after Oak hands the Pokedex
+      -- over -- Gen 1 says so in as many words (src/ui/StartMenu.lua:30),
+      -- and Gold gates it on ENGINE_POKEDEX, the flag written at Mr.
+      -- Pokemon's house (src/ui/gen2/StartMenu.lua:49,161-172). So its
+      -- PRESENCE answers "does this player have a Pokedex" on either
+      -- generation, without this file knowing a flag number or an item
+      -- name, and without it having to be told again when the engine
+      -- changes how the flag is stored.
+      --
+      -- Matched on `id` first and on the label only as a fallback: the id
+      -- is stable, the label is text and one day it will be translated.
+      local row
+      for _, item in ipairs(out) do
+        local label = tostring(item.label or "")
+        if item.id == "pokedex"
+           or (label:find("POK") and label:find("DEX")) then
+          row = item
+          break
         end
+      end
+
+      -- No row, no Pokedex, no grid. This screen used to add a DEX GRID
+      -- line whatever the game said, so on a fresh Gold -- where the row
+      -- does not exist yet -- the mod handed the player a Pokedex hours
+      -- before the game meant to, and on any boot it sat BESIDE the real
+      -- one instead of being it.
+      if not row then return out end
+
+      if opt("replace", true) then
+        row.onSelect = function() mod.ui.push(game, SCREEN) end
+        return out
       end
       return mod.ui.insertBefore(out, "SAVE", {
         label = "DEX GRID",

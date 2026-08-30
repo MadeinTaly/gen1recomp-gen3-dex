@@ -16,6 +16,21 @@ fullLayout() end` sits ABOVE its Gen 2 guard -- so this is the dex being
 brought back in line with its twin rather than anything new being invented.
 
 
+**No Pokedex, no grid -- and on Gold it IS the Pokedex.** This screen added
+a `DEX GRID` row to the start menu whenever it could not find the game's own
+POKéDEX row to replace. On a fresh Gold that row does not exist yet, so the
+mod handed the player a Pokedex hours before the game meant to, and it sat
+BESIDE the real one instead of being it.
+
+Both start menus show that row only after Oak hands the Pokedex over -- Gen 1
+says so in as many words (`src/ui/StartMenu.lua:30`) and Gold gates it on
+`ENGINE_POKEDEX`, the flag written at Mr. Pokemon's house
+(`src/ui/gen2/StartMenu.lua:49,161-172`). So its PRESENCE is the answer to
+"does this player have a Pokedex", on either generation, without this file
+knowing a flag number. No row now means no grid at all; a row means the grid
+replaces it. Matched on `id` first and on the label only as a fallback, since
+the id is stable and the label is text that will one day be translated.
+
 **The notes popup follows a rule now.** It opens on a first install, and on
 an update that actually carries the thing it describes -- nothing else. The
 gate was `newsSeen() ~= NEWS_VERSION`, DIFFERENT-FROM where it should have
