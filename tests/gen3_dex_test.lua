@@ -51,6 +51,15 @@ local store = loader.modOptions.gen3_dex
 -- pannello. Il blocco in fondo lo azzera per provare il popup davvero, e
 -- c'e' un test apposta sulla regola di quando deve uscire.
 local NEWS_SEEN_FUTURE = "99999.0.0"
+-- Dalla 0.20.0 FULL SCREEN e TOUCH sono ACCESI di default. Questo file e'
+-- stato scritto quando erano spenti e quasi ogni blocco lo da' per
+-- scontato: superficie 160x144, niente widescreen, nessun dito. Fissarli
+-- qui tiene quelle prove a dire quello che volevano dire. Il default
+-- SPEDITO e' verificato a parte, sullo schema, in fondo al file.
+loader.modOptions = loader.modOptions or {}
+loader.modOptions.gen3_dex = loader.modOptions.gen3_dex or {}
+loader.modOptions.gen3_dex.fullscreen = false
+loader.modOptions.gen3_dex.touch = false
 loader.modSave = loader.modSave or {}
 loader.modSave.gen3_dex = loader.modSave.gen3_dex or {}
 local newsStore = loader.modSave.gen3_dex
@@ -1789,6 +1798,26 @@ do
   end
 
   if optStore then optStore.touch = nil end
+end
+
+-- ------- I DEFAULT SPEDITI SONO ACCESI, E BACKDROP NON E' PIU' UN'OPZIONE
+--
+-- Il banco di prova li spegne in cima per non riscrivere trenta blocchi,
+-- quindi il valore che vede chi installa va letto sullo SCHEMA.
+do
+  local schema = loader.optionSchemas and loader.optionSchemas.gen3_dex
+  T.check(schema ~= nil, "lo schema delle opzioni c'e'")
+  if schema then
+    local seen = {}
+    for _, row in ipairs(schema) do seen[row.key] = row end
+    T.check(seen.fullscreen and seen.fullscreen.default == true,
+      "FULL SCREEN parte acceso")
+    T.check(seen.touch and seen.touch.default == true,
+      "e TOUCH pure -- si tornano a spegnere dalle opzioni")
+    T.check(seen.backdrop == nil,
+      "BACKDROP non e' piu' una riga: si sceglie dalla schermata, dove si " ..
+      "vede quello che si sta scegliendo")
+  end
 end
 
 T.finish("gen3_dex")

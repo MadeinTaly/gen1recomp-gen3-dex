@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.20.0 -- full screen and fingers out of the box, and REPLACE DEX works on Gold
+
+**REPLACE DEX did nothing on Gold.** The toggle read ON and POKeDEX opened
+the engine's own list. Gen 2's start menu only honours a row's `onSelect`
+when that row carries no `value` (`src/ui/gen2/StartMenu.lua:216`) -- and a
+vanilla row carries one, so the replacement was skipped and the dispatch fell
+straight through to the engine. Clearing the value turns the row into the
+shape a mod's own row has, label plus `onSelect`, which Gen2Compat documents
+as answered on both generations. Gen 1's rows never had a value, so one path
+serves both.
+
+**FULL SCREEN and TOUCH now ship ON.** This screen is a list, and a list that
+fills the glass is the whole feature; leaving it off meant most players never
+saw the thing the mod is for. Both go back from `START - MODS - OPTIONS`.
+
+**BACKDROP is no longer an option row.** It is chosen on the screen, where
+you can see what you are choosing -- SELECT, then A on THEME. Two ways to set
+one thing is two sources of truth, and the one in a settings list always
+loses: you pick there, then pick a scene on the screen, and the two disagree
+about what you asked for. A value already sitting in options from an older
+install is still honoured, because taking a setting away should not silently
+change what somebody already chose.
+
 ## 0.19.2 -- the release notes mention the fingers
 
 The touch layer landed in 0.19.0 and this panel is meant to open exactly

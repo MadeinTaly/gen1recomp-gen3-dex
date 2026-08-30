@@ -107,8 +107,11 @@ return function(mod)
     -- fills the screen is the whole feature. The paging, the cursor and the
     -- chooser all read their shape from the layout rather than from the
     -- Game Boy constants, which is what made it hold at any size.
+    -- ON by default from 0.20.0. This screen is a list, and a list that
+    -- fills the glass is the whole feature; leaving it off meant most
+    -- players never saw the thing the mod is for. OPTIONS puts it back.
     { key = "fullscreen", label = "FULL SCREEN", type = "toggle",
-      default = false },
+      default = true },
     -- TOUCH is off by default and, while it is off, this screen is exactly
     -- the screen it was: the hook returns early, so the grid keeps whatever
     -- shape GRID was set to and nothing here can move it.
@@ -117,16 +120,16 @@ return function(mod)
     -- two cell sizes and a setting that picks between them, so two fingers
     -- drive that same setting -- which is why the change sticks after you
     -- leave, and why "touch off" needs no special case to mean "standard".
-    { key = "touch", label = "TOUCH", type = "toggle", default = false },
-    { key = "backdrop", label = "BACKDROP", type = "choice", default = "scene",
-      choices = {
-        { "SCENE", "scene" },
-        { "SOFT", "soft" },
-        { "PAPER", "paper" },
-        { "MINT", "mint" },
-        { "PEACH", "peach" },
-        { "WHITE", "white" },
-      } },
+    -- ON by default from 0.20.0 as well: the mod is played on phones, and
+    -- a d-pad drawn over glass is not the way anybody reaches for a grid.
+    -- Turning it off restores the buttons-only screen exactly.
+    { key = "touch", label = "TOUCH", type = "toggle", default = true },
+    -- BACKDROP is NOT an option row, for the same reason WHICH scene is not
+    -- one: it is chosen on the screen, where you can see what you are
+    -- choosing. Two ways to set one thing is two sources of truth, and the
+    -- one in a settings list always loses -- you set it there, then set a
+    -- scene on the screen, and the screen quietly disagrees with the menu
+    -- about what you asked for. SELECT, then A on THEME.
     -- WHICH scene is not an option row. It was, for one release, and two
     -- lists of bare names in a settings menu is a worse way to pick a
     -- picture than the chooser on the screen itself -- where the Pokedex
@@ -1831,10 +1834,22 @@ return function(mod)
       peach = { { 252, 240, 232 }, { 248, 222, 208 }, { 238, 196, 178 } },
     }
 
+    -- The SAVE is the only place this lives now that the option row is
+    -- gone, and the fallback is SCENE -- what the row's default was, not
+    -- what its failed-read fallback was. Those were two different values
+    -- and only the first one ever reached a player: `backdropName() ~=
+    -- "scene"` is what decides whether a scene is drawn at all, so
+    -- inheriting the wrong one here would have quietly turned the
+    -- backdrops off for everybody.
     local function backdropName()
+      local okS, saved = pcall(function() return mod.save:get("backdrop") end)
+      if okS and type(saved) == "string" then return saved end
+      -- The row is gone from OPTIONS, but a value already sitting there
+      -- from an older install is still honoured: taking a setting away
+      -- should not silently change what somebody already chose.
       local ok, value = pcall(function() return mod.options:get("backdrop") end)
-      if not ok or type(value) ~= "string" then return "soft" end
-      return value
+      if ok and type(value) == "string" then return value end
+      return "scene"
     end
 
     -- ------- the box's wallpapers, borrowed
@@ -2962,6 +2977,16 @@ return function(mod)
 
       if opt("replace", true) then
         row.onSelect = function() mod.ui.push(game, SCREEN) end
+        -- ...and on Gold that is not enough on its own. Gen 2's menu only
+        -- honours `onSelect` when the row carries NO `value`
+        -- (src/ui/gen2/StartMenu.lua:216); a vanilla row carries one, so it
+        -- fell straight through to the engine's own dispatch and opened the
+        -- vanilla Pokedex while REPLACE DEX sat there reading ON. Clearing
+        -- the value turns the row into the shape a mod's own row has --
+        -- label plus onSelect -- which Gen2Compat documents as answered on
+        -- both generations. Gen 1's rows never had a value, so this is a
+        -- no-op there and one path serves both.
+        row.value = nil
         return out
       end
       return mod.ui.insertBefore(out, "SAVE", {
