@@ -16,6 +16,23 @@ fullLayout() end` sits ABOVE its Gen 2 guard -- so this is the dex being
 brought back in line with its twin rather than anything new being invented.
 
 
+**Coming back from a Pokemon on Gold was a soft lock.** `pushEntry` opened
+Gold's `Gen2PokedexMenu` without an `onClose`, and that screen's `close()`
+sets `lastDexMode` and calls `onClose` -- that is ALL it does
+(`src/ui/gen2/PokedexMenu.lua:339-341`). It never pops itself. Pushed without
+a callback it stayed on the stack for ever, so B off an entry landed the
+player on Gold's own Pokedex list with no way out. The engine's own caller
+passes the callback (`src/ui/gen2/BoxMenu.lua:309`); so does this one now.
+`Gen2SummaryMenu` has the same shape and the same trap.
+
+**On Gold every Pokemon was grey, caught ones included.** The colours were
+skipped on Gen 2 on the belief that "Gold colours its own pictures". It does
+not: Gold composes through `Game2`, which never runs the palette pass, so
+nothing was colouring them -- not the engine, and not this file either,
+because it went out of its way to stand aside for it. On Gen 2 the colours
+now always travel with the PICTURE, scene or no scene, which is the one
+route that does not depend on a zone pass ever running. Gen 1 is unchanged.
+
 **No Pokedex, no grid -- and on Gold it IS the Pokedex.** This screen added
 a `DEX GRID` row to the start menu whenever it could not find the game's own
 POKéDEX row to replace. On a fresh Gold that row does not exist yet, so the

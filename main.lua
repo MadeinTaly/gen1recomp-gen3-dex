@@ -169,7 +169,19 @@ return function(mod)
   -- for you.
   local function pushEntry(game, species)
     if isGen2(game) then
-      Screens.push(game, "Gen2PokedexMenu", { entrySpecies = species })
+      -- `onClose` is not optional, whatever the field name suggests.
+      -- Gen2PokedexMenu:close() sets lastDexMode and then calls onClose --
+      -- and that is ALL it does (src/ui/gen2/PokedexMenu.lua:339-341). It
+      -- never pops itself. Pushed without a callback it stays on the stack
+      -- for ever: B off the entry lands the player on Gold's own Pokedex
+      -- list with no way out of it, which is a soft lock, not a wrong
+      -- screen. The engine's own caller does exactly this
+      -- (src/ui/gen2/BoxMenu.lua:309), and Gen2SummaryMenu has the same
+      -- shape and the same trap.
+      Screens.push(game, "Gen2PokedexMenu", {
+        entrySpecies = species,
+        onClose = function() game.stack:pop() end,
+      })
     else
       Screens.push(game, "DexEntryMenu", species)
     end
@@ -2404,9 +2416,23 @@ return function(mod)
               -- ever emitted for it) and stays in its own greys; full-colour
               -- replacement art is drawn as it is, since a shade remap is
               -- what ruins that art; and Gold colours its own pictures.
+              -- "Gold colours its own pictures" was wrong, and it is why
+              -- every Pokemon on Gold came out grey -- caught ones too.
+              -- Gold composes through Game2, which never runs the palette
+              -- pass at all (it does not even ask a state for uiSize), so
+              -- on that boot NOTHING was coming to colour these: not the
+              -- engine, and not this file either, because this line went
+              -- out of its way to stand aside for it.
+              --
+              -- On Gen 2 the colours therefore always travel with the
+              -- PICTURE, scene or no scene, which is the one route that
+              -- does not depend on a zone pass ever running. Gen 1 is
+              -- unchanged: zones colour it on the plain background, and
+              -- the figure carries its own colours over a scene, where
+              -- per-cell zones would paint that white card again.
               local colors = nil
-              if onScene and not trueColor and not isGen2(game)
-                 and e.state == "owned" then
+              if not trueColor and e.state == "owned"
+                 and (onScene or isGen2(game)) then
                 colors = PaletteFX.monPal(game.data, e.def.id)
               end
               paintPic(img, x + (L.cell - w) / 2, y + (L.cell - h) / 2, k,
