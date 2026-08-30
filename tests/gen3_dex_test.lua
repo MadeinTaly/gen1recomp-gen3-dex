@@ -1267,11 +1267,20 @@ do
     if zones then
       T.check(zones[1].colors == PaletteFX.GRAYS,
         "e senza scena resta il grigio di sempre")
-      -- senza scena il fondo e' bianco pieno: li' il cartoncino non si vede
-      -- e le zone restano il modo in cui un Pokemon prende i suoi colori
-      if PaletteFX.monPal(Data, ordered[1]) then
-        T.check(#zones > 1, "e le zone per cella tornano al loro posto")
-      end
+      -- ------- E LE ZONE PER-CELLA NON ESISTONO PIU', SU NESSUNA SUPERFICIE
+      --
+      -- Prima qui se ne aspettava una per cella occupata. I colori
+      -- viaggiano con la FIGURA adesso, sempre: una seconda strada
+      -- colorerebbe gli stessi pixel due volte, e sopra una scena
+      -- ridipingerebbe tutto il rettangolo della cella -- il cartoncino
+      -- bianco per cui questa schermata e' stata segnalata.
+      --
+      -- E comunque non poteva funzionare ovunque: una zona si indirizza in
+      -- TILE e la cella di CLASSIC e' 28, che non e' multiplo di 8. Su quel
+      -- layout non veniva emessa nessuna zona e i Pokemon restavano grigi,
+      -- che e' come e' stato segnalato.
+      T.eq(#zones, 1,
+        "una zona sola anche senza scena: la figura e' l'unica strada")
     end
     store.backdrop = "scene"
     store.grid = wasGrid

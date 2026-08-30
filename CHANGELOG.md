@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.20.1 -- grey in CLASSIC, and no way back from an entry on Gold
+
+**Every Pokemon was grey in CLASSIC.** The colours used to travel with the
+figure only over a scene, and otherwise came from one palette zone per cell.
+That could never work on this layout: a zone is addressed in TILES and
+CLASSIC's cell is 28, which is not a multiple of 8, so no zone was ever
+emitted and the whole grid stayed in four DMG greys. Coloured in BIG and grey
+in CLASSIC is not a setting anybody chose.
+
+The figure carries its own colours now, on every surface, and the per-cell
+zones are gone entirely -- a second route would colour the same pixels twice
+and, over a scene, repaint the cell rectangle around them, which is the white
+card this screen was reported for.
+
+**SEEN species are coloured too, just pale.** A species you have met is drawn
+faint rather than grey: the two halves of a dex are told apart by how strong
+the picture is, not by whether it has any colour at all, and a grey ghost on
+a pale scene was most of a page you could not read.
+
+That took a canvas. The remap shader returns `vec4(mapped, p.a)` and never
+multiplies by the vertex colour (`src/render/PaletteFX.lua:176-180`), so
+`setColor`'s alpha does nothing to a shaded draw -- colour and fade were
+mutually exclusive, and fade was winning. A faded coloured picture is drawn
+twice now: through the shader onto a canvas its own size, then that canvas
+onto the screen with the alpha. Cached by size, since a page asks for a
+handful of sizes and a single-slot cache would rebuild one per cell.
+
+**Backing out of a Pokemon on Gold left you in the old Pokedex.**
+`entrySpecies` opens Gold's Pokedex ON a species, but that screen is the
+WHOLE Pokedex: backing out of the entry drops into its own list
+(`src/ui/gen2/PokedexMenu.lua:384-385`) with this grid forgotten underneath.
+`newEntry` is the two-page viewing with no action bar, where A or B pages
+through and then closes -- which is where the `onClose` added in 0.18.0 pops
+back here. "Look at this one Pokemon and come back" needed both halves.
+
 ## 0.20.0 -- full screen and fingers out of the box, and REPLACE DEX works on Gold
 
 **REPLACE DEX did nothing on Gold.** The toggle read ON and POKeDEX opened

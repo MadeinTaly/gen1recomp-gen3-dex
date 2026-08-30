@@ -225,8 +225,21 @@ return function(mod)
       -- screen. The engine's own caller does exactly this
       -- (src/ui/gen2/BoxMenu.lua:309), and Gen2SummaryMenu has the same
       -- shape and the same trap.
+      -- `newEntry` is the other half of this, and without it B did not
+      -- come back here: `entrySpecies` opens Gold's Pokedex ON that
+      -- species, but that screen is the WHOLE Pokedex, so backing out of
+      -- the entry drops into its own list (`self.view = "list"`,
+      -- src/ui/gen2/PokedexMenu.lua:384-385) and the player is left in the
+      -- old dex with this grid forgotten underneath.
+      --
+      -- `newEntry` is the two-page NewPokedexEntry viewing with no action
+      -- bar (engine/pokedex/new_pokedex_entry.asm): A or B pages through
+      -- and then calls close(), which is where onClose pops us back. Which
+      -- is what "look at this one Pokemon and come back" should have been
+      -- from the start.
       Screens.push(game, "Gen2PokedexMenu", {
         entrySpecies = species,
+        newEntry = true,
         onClose = function() game.stack:pop() end,
       })
     else
@@ -801,17 +814,71 @@ return function(mod)
     -- No shader (headless, or a driver that refuses one) draws the picture
     -- plainly: it comes out in DMG greys, which is what a species with no
     -- palette gets anyway, and nothing crashes.
+    -- ------- FADING A SHADED PICTURE TAKES A CANVAS
+    --
+    -- The remap shader returns `vec4(mapped, p.a)` and never multiplies by
+    -- the vertex colour (src/render/PaletteFX.lua:176-180), so setColor's
+    -- alpha does NOTHING to a shaded draw. Colour and fade were therefore
+    -- mutually exclusive: a SEEN species could be pale OR coloured, and it
+    -- was pale, which is why it came out a grey ghost.
+    --
+    -- So a faded coloured picture is drawn twice: once through the shader
+    -- onto a canvas of its own, then that canvas onto the screen with the
+    -- alpha. The canvas is exactly the picture's size and is cached BY
+    -- SIZE, because a page asks for a handful of distinct sizes and a
+    -- single-slot cache would rebuild one per cell.
+    local fadeCanvases = {}
+    local function fadeCanvas(w, h)
+      local key = w .. "x" .. h
+      local hit = fadeCanvases[key]
+      if hit ~= nil then return hit or nil end
+      local ok, made = pcall(love.graphics.newCanvas, w, h)
+      fadeCanvases[key] = (ok and made) or false
+      return fadeCanvases[key] or nil
+    end
+
     local function paintPic(img, x, y, k, colors, alpha)
       local g = love.graphics
+      local a = alpha or 1
       local sh = nil
       if colors and type(PaletteFX.shader) == "function" then
         local ok, made = pcall(PaletteFX.shader)
         if ok and made then
           local sent = pcall(PaletteFX.sendColors, made, colors)
-          if sent and pcall(g.setShader, made) then sh = made end
+          if sent then sh = made end
         end
       end
-      g.setColor(1, 1, 1, alpha or 1)
+
+      if sh and a < 1 then
+        local okDim, iw, ih = pcall(function()
+          return img:getWidth(), img:getHeight()
+        end)
+        local canvas = okDim and iw and ih and fadeCanvas(iw, ih) or nil
+        if canvas then
+          local drew = pcall(function()
+            g.push("all")
+            g.setCanvas(canvas)
+            g.clear(0, 0, 0, 0)
+            g.setShader(sh)
+            g.setColor(1, 1, 1, 1)
+            g.draw(img, 0, 0)
+            g.pop()
+          end)
+          pcall(g.setCanvas)
+          if drew then
+            g.setColor(1, 1, 1, a)
+            pcall(g.draw, canvas, x, y, 0, k, k)
+            g.setColor(1, 1, 1, 1)
+            return
+          end
+        end
+        -- no canvas to be had: colour wins over the fade, because a
+        -- picture in the wrong strength still says which Pokemon it is
+        -- and a grey one does not
+      end
+
+      if sh then pcall(g.setShader, sh) end
+      g.setColor(1, 1, 1, a)
       pcall(g.draw, img, x, y, 0, k, k)
       if sh then pcall(g.setShader) end
       g.setColor(1, 1, 1, 1)
@@ -1315,30 +1382,20 @@ return function(mod)
       -- colours travel with the PICTURE (paintPic's keyed shader) and this
       -- list stays one zone long; on the plain white background the zones
       -- are still how a Pokemon gets its colours, exactly as before.
-      if not onScene then
-        -- A ceiling, the same one the box mod keeps (its `MAX_ZONES = 40`).
-        -- Every zone costs the remap pass another blit of the whole surface,
-        -- and this list had none: a full-screen grid of owned species emits
-        -- one per cell, so a finished Pokedex paid eighty blits a frame to
-        -- colour eighty pictures. Past the ceiling the rest keep the base
-        -- palette, which is what they wore before any of this existed.
-        local MAX_ZONES = 40
-        local tiles = L.cell / 8
-        local start = pageStart()
-        for slot = 0, perPage() - 1 do
-          if #zones >= MAX_ZONES then break end
-          local e = self.entries[start + slot + 1]
-          if e and e.state == "owned" then
-            local colors = PaletteFX.monPal(game.data, e.def.id)
-            if colors then
-              local x, y = cellRect(slot)
-              local tx, ty = x / 8, y / 8
-              zones[#zones + 1] =
-                PaletteFX.zone(colors, tx, ty, tx + tiles - 1, ty + tiles - 1)
-            end
-          end
-        end
-      end
+      -- ------- NO PER-CELL ZONES, ON ANY SURFACE
+      --
+      -- There used to be one zone per owned cell here, and a ceiling of
+      -- forty to keep the frame rate honest. Both are gone: the figure
+      -- carries its own colours now (see the draw), so a second route
+      -- would colour the same pixels twice -- and over a scene it would
+      -- repaint the whole cell rectangle around them, which is the white
+      -- card this screen was reported for.
+      --
+      -- It also could not have worked everywhere. A zone is addressed in
+      -- TILES and CLASSIC's cell is 28, not a multiple of 8, so on that
+      -- layout no zone was ever emitted and every Pokemon stayed grey.
+      -- The base zone above still covers the surface; that one is at 0,0
+      -- and is on the tile grid whatever the cell measures.
       return zones
     end
 
@@ -2651,9 +2708,24 @@ return function(mod)
               -- unchanged: zones colour it on the plain background, and
               -- the figure carries its own colours over a scene, where
               -- per-cell zones would paint that white card again.
+              -- ------- THE FIGURE ALWAYS CARRIES ITS OWN COLOURS
+              --
+              -- One mechanism, on every surface, for both halves of the
+              -- dex. The old rule -- colour the figure only over a scene,
+              -- otherwise let per-cell zones do it -- could not work in
+              -- CLASSIC at all: a zone is addressed in TILES and CLASSIC's
+              -- cell is 28, which is not a multiple of 8, so no zone was
+              -- ever emitted and every Pokemon came out in four DMG greys.
+              -- Grey in CLASSIC and coloured in BIG is not a setting
+              -- anybody chose.
+              --
+              -- SEEN gets its colours too now. A species you have met is
+              -- drawn pale, not grey: the two halves of a dex are told
+              -- apart by how STRONG the picture is, not by whether it has
+              -- any colour at all -- and a grey ghost over a pale scene was
+              -- most of a page you could not read.
               local colors = nil
-              if not trueColor and e.state == "owned"
-                 and (onScene or isGen2(game)) then
+              if not trueColor and e.state ~= "unknown" then
                 colors = monColours(game, e.def.id)
               end
               paintPic(img, x + (L.cell - w) / 2, y + (L.cell - h) / 2, k,
