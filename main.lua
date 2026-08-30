@@ -2095,9 +2095,37 @@ return function(mod)
     -- the wrapping: a player with both mods learns this once.
     -- 0.18.0 changed what the screen DOES -- caught Pokemon move now -- so
     -- this moves with it. 0.17.1 through 0.17.3 did not, and did not.
-    local NEWS_VERSION = "0.18.0"
+    local NEWS_VERSION = "0.19.0"
     local NEWS_ACCENT = { 32, 96, 208 }
     local NEWS = {
+      {
+        title = "TOUCH",
+        lines = {
+          { "Read it with", true },
+          { "your fingers.", true },
+          { "" },
+          { "Tap to point," },
+          { "tap again to" },
+          { "open." },
+          { "" },
+          { "Drag: page." },
+          { "Pinch: zoom." },
+        },
+      },
+      {
+        title = "TURN IT ON",
+        lines = {
+          { "It ships OFF," },
+          { "so nothing" },
+          { "changes yet." },
+          { "" },
+          { "START - MODS -", true },
+          { "OPTIONS - TOUCH", true },
+          { "" },
+          { "Made for" },
+          { "phones." },
+        },
+      },
       {
         title = "THEY MOVE NOW",
         lines = {

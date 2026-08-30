@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.2 -- the release notes mention the fingers
+
+The touch layer landed in 0.19.0 and this panel is meant to open exactly
+when what the screen DOES changes, so `NEWS_VERSION` moves with it. Two
+pages: what the gestures are, and where to switch them on -- because it
+ships OFF and a feature nobody can find is a feature nobody has.
+
 ## 0.19.1 -- the pinch was writing into the void
 
 **`mod.options` is read-only.** It has `define` and `get` and nothing else
