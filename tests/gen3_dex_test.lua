@@ -1452,6 +1452,35 @@ do
     T.check(s2.news == nil, "B chiude da qualsiasi pagina")
   end
 
+  -- ------- e adesso lo si DISEGNA davvero
+  --
+  -- 0.17.0 e' uscita con `fitTo` dentro drawNews: e' il nome che ha la mod
+  -- delle box, questa schermata ha `fit`, e quindi era una chiamata a nil
+  -- che chiudeva l'applicazione al primo fotogramma del popup. Nessun test
+  -- di questo file aveva mai chiamato draw(), quindi 175 controlli verdi
+  -- non dicevano niente su una funzione che non esisteva.
+  --
+  -- love_stub disegna nel vuoto ma ESEGUE tutto, quindi ogni pagina viene
+  -- disegnata qui, in tutte e due le griglie.
+  do
+    local grid = store.grid
+    for _, which in ipairs({ "classic", "big" }) do
+      store.grid = which
+      local s3 = factory.new(g)
+      for page = 1, #s3.newsPages do
+        s3.news = { page = page }
+        local ok, err = pcall(function() s3:draw() end)
+        T.check(ok, ("la pagina %d si disegna in %s (%s)")
+          :format(page, which, tostring(err)))
+      end
+      s3.news = nil
+      local ok, err = pcall(function() s3:draw() end)
+      T.check(ok, ("e la schermata si disegna in %s senza popup (%s)")
+        :format(which, tostring(err)))
+    end
+    store.grid = grid
+  end
+
   local x, y, w, h, k = s2.newsRect()
   local L = s2.layout()
   T.check(x >= 0 and y >= 0 and x + w <= L.w and y + h <= L.h,

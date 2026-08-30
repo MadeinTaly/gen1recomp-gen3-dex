@@ -1870,6 +1870,20 @@ return function(mod)
     end
     self.newsInner = function() return newsInner(layout(game)) end
 
+    -- clipped to the panel, NOT to the screen: `fit` above measures against
+    -- the whole surface, and this text lives inside a box in the middle of
+    -- it. (The box mod's equivalent is called fitTo and takes a width;
+    -- calling that name here is what crashed 0.17.0 on the first frame the
+    -- popup drew -- this screen has no such function, so it was a call to
+    -- nil, and the error walked straight out of draw() and closed the app.)
+    local function clipTo(text, maxW)
+      text = tostring(text or "")
+      while #text > 1 and Font.width(text) > maxW do
+        text = text:sub(1, #text - 1)
+      end
+      return text
+    end
+
     local function wrapNews(text, maxW)
       local out, line = {}, nil
       for word in tostring(text or ""):gmatch("%S+") do
@@ -1909,7 +1923,7 @@ return function(mod)
       local ty = oy0 + 8 * step
       local bottom = (scaled and (h / k) or h) + oy0
       g.setColor(0, 0, 0, 1)
-      Font.draw(fitTo(Strings("%s %s", page.title, NEWS_VERSION), inner),
+      Font.draw(clipTo(Strings("%s %s", page.title, NEWS_VERSION), inner),
         tx0, ty)
       ty = ty + 14 * step
       for _, entry in ipairs(page.lines) do
@@ -1930,7 +1944,7 @@ return function(mod)
       end
       g.setColor(0, 0, 0, 1)
       local last = self.news.page >= #NEWS
-      Font.draw(fitTo(Strings("%d/%d %s", self.news.page, #NEWS,
+      Font.draw(clipTo(Strings("%d/%d %s", self.news.page, #NEWS,
         last and "A:CLOSE" or "A:NEXT B:EXIT"), inner),
         tx0, bottom - 12 * step)
       if scaled then pcall(g.pop) end

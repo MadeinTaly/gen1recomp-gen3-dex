@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.17.1 -- the popup closed the app
+
+0.17.0 called `fitTo` inside the WHAT'S NEW popup. That is the name the box
+mod uses for clipping a string to a width; THIS screen has `fit`, which
+measures against the whole surface instead. So it was a call to a nil global,
+on the first frame the popup drew -- which is the first frame of the Pokedex
+after updating. The error walked out of draw() and the application closed.
+
+The clip is now a local of its own, measured against the PANEL rather than
+the screen, which is what the text inside a box in the middle of the screen
+needs anyway.
+
+**And the suite now draws.** Every page, in both grids, through the headless
+stub -- plus the screen with no popup at all. 175 green checks said nothing
+about a function that did not exist, because no test in this file had ever
+called draw(). Restoring the bad name fails fourteen checks now.
+
 ## 0.17.0 -- a popup that says what changed, and where the thing is
 
 Every release so far has added something behind a menu or an option -- the
