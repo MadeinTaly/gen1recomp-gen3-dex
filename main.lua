@@ -470,6 +470,23 @@ return function(mod)
       return nil
     end
 
+    -- ------- UNOWN, whose picture is not the species' (box mod issue #7)
+    --
+    -- The species record's `spriteFront` is letter A's pic; the letter lives
+    -- in a MON's DVs. A dex row has no mon, so the cart shows the form the
+    -- player MET FIRST -- Pokedex_LoadSelectedMonTiles copies wFirstUnownSeen
+    -- into wUnownLetter before GetMonFrontpic -- and the engine's own
+    -- PokedexMenu does the same off `save.firstUnownSeen`. This grid drew an
+    -- A for a player who has never caught one.
+    local function unownPath(def)
+      local okU, Unown = pcall(require, "src.core.gen2.Unown")
+      if not (okU and type(Unown) == "table") then return nil end
+      if def.id ~= Unown.SPECIES then return nil end
+      local first = game.save and tonumber(game.save.firstUnownSeen) or 0
+      if not first or first == 0 then return nil end
+      return Unown.formSprite(game.data and game.data.pokemon, first, false)
+    end
+
     local function picOf(def)
       local hit = picCache[def.id]
       if hit ~= nil then
@@ -481,6 +498,12 @@ return function(mod)
         return require("src.pokemon.Sprites").path(
           game.data, def.id, "front", { kind = "dex" })
       end)
+      -- a hook that passed the record straight back does not get to
+      -- overrule the Unown form the player actually met
+      local form = unownPath(def)
+      if form and (not ok or hooked == def.spriteFront) then
+        hooked, hookedTrue = form, false
+      end
       local img = ok and tryImage(hooked) or nil
       local trueColor = img and hookedTrue and true or false
       -- 2. the species record, which is what the game shipped with

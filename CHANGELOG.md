@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.17.3 -- the Unown row shows the form you met
+
+The same fault the box mod was reported for (#7 there), on the other screen:
+the species record's picture is letter A's, and a dex row has no mon to read
+DVs from -- so the grid drew an A for a player who had never caught one.
+
+The cart shows the form met FIRST: Pokedex_LoadSelectedMonTiles copies
+wFirstUnownSeen into wUnownLetter before loading the picture, and the
+engine's own PokedexMenu does the same off `save.firstUnownSeen`. So does
+this grid now. A sprite pack that answered with its own art still wins; a
+hook that passed the record straight back does not get to overrule the
+letter.
+
 ## 0.17.2 -- the empty grid, and the backdrops at the size they were drawn
 
 **Every cell was empty with a sprite pack installed.** 0.16.0 started
