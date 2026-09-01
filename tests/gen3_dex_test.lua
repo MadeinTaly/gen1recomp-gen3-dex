@@ -1829,4 +1829,20 @@ do
   end
 end
 
+-- ------- L'OPZIONE ANIMATE ESISTE E HA LE TRE SCELTE
+do
+  local schema = loader.optionSchemas and loader.optionSchemas.gen3_dex
+  if schema then
+    local row
+    for _, r in ipairs(schema) do if r.key == "anim" then row = r end end
+    T.check(row ~= nil, "il dex ha la riga ANIMATE")
+    local want = { all = false, one = false, off = false }
+    for _, c in ipairs((row and row.choices) or {}) do
+      if want[c[2]] ~= nil then want[c[2]] = true end
+    end
+    T.check(want.all and want.one and want.off,
+      "con ALL, ONE e OFF fra le scelte")
+  end
+end
+
 T.finish("gen3_dex")

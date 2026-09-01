@@ -124,6 +124,15 @@ return function(mod)
     -- a d-pad drawn over glass is not the way anybody reaches for a grid.
     -- Turning it off restores the buttons-only screen exactly.
     { key = "touch", label = "TOUCH", type = "toggle", default = true },
+    -- Crystal's Pokemon move; how many at once is taste. A page of them
+    -- animating is a lot of motion to read a list through, so ONE animates
+    -- only the row the cursor is on -- the one you are looking at.
+    { key = "anim", label = "ANIMATE", type = "choice", default = "all",
+      choices = {
+        { "ALL", "all" },
+        { "ONE", "one" },
+        { "OFF", "off" },
+      } },
     -- BACKDROP is NOT an option row, for the same reason WHICH scene is not
     -- one: it is chosen on the screen, where you can see what you are
     -- choosing. Two ways to set one thing is two sources of truth, and the
@@ -916,8 +925,16 @@ return function(mod)
     -- A dex row has no mon, so Unown takes the animation of the form the
     -- player met FIRST, the same letter its picture already uses.
     local animSheets = {}
-    local function crystalAnim(def)
+    local function animMode()
+      local ok, v = pcall(function() return mod.options:get("anim") end)
+      return (ok and v) or "all"
+    end
+
+    local function crystalAnim(def, isCursor)
       if not def then return nil end
+      local mode = animMode()
+      if mode == "off" then return nil end
+      if mode == "one" and not isCursor then return nil end
       local rec = def.anim
       local okU, Unown = pcall(require, "src.core.gen2.Unown")
       if okU and type(Unown) == "table" and def.id == Unown.SPECIES then
@@ -938,7 +955,11 @@ return function(mod)
       if not hit then return nil end
       local size = hit:getWidth()
       local total = rec.count + 1
-      local at = math.floor((self.sceneTick or 0) / 6) % total
+      -- Ten ticks a frame, not six: Crystal's PokeAnim carries a duration
+      -- per frame and this does not read them, so the rate is flat -- and
+      -- at six a ten-frame Pokemon ran a whole cycle a second, which is a
+      -- fidget rather than a breath.
+      local at = math.floor((self.sceneTick or 0) / 10) % total
       local okQ, quad = pcall(love.graphics.newQuad, 0, at * size,
         size, size, hit:getWidth(), hit:getHeight())
       if not okQ or not quad then return nil end
@@ -2794,7 +2815,8 @@ return function(mod)
               -- there is room to see them
               local quad, qsize = nil, nil
               if not trueColor then
-                local sheet, q, size = crystalAnim(e.def)
+                local sheet, q, size =
+                  crystalAnim(e.def, (start + slot) == self.index)
                 if sheet then img, quad, qsize = sheet, q, size end
               end
               local srcW = quad and qsize or img:getWidth()
