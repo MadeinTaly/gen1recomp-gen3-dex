@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.20.2 -- the same hole the box mod had
+
+`formSprite` never answers nil: on a species with no `letters` table it falls
+back to the species' own picture, which IS letter A's
+(`src/core/gen2/Unown.lua:325`). Since 0.19.0 the form beats a sprite pack,
+so on a boot whose data carries no per-letter art that fallback won and put
+the A on every form -- the bug that change was made to fix, in different
+clothes.
+
+The form is preferred only when there is one now: the `letters` table is
+asked directly rather than comparing paths, because the species record is
+letter A's picture and a legitimate A would compare equal to it.
+
 ## 0.20.1 -- grey in CLASSIC, and no way back from an entry on Gold
 
 **Every Pokemon was grey in CLASSIC.** The colours used to travel with the

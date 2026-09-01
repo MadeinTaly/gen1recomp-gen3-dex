@@ -684,7 +684,20 @@ return function(mod)
       if def.id ~= Unown.SPECIES then return nil end
       local first = game.save and tonumber(game.save.firstUnownSeen) or 0
       if not first or first == 0 then return nil end
-      return Unown.formSprite(game.data and game.data.pokemon, first, false)
+      -- ...but only if there IS a form to prefer. `formSprite` never
+      -- answers nil: with no `letters` table on the species it falls back
+      -- to the species' own picture (src/core/gen2/Unown.lua:325), which is
+      -- letter A's. Since 0.19.0 the form beats a sprite pack, so on a boot
+      -- whose data carries no letters that fallback would win and put the A
+      -- on every form -- the bug that change was made to fix, in different
+      -- clothes. The `letters` table is asked directly rather than
+      -- comparing paths, because the species record IS letter A's picture
+      -- and a legitimate A would compare equal to it.
+      local pokemon = game.data and game.data.pokemon
+      local sdef = pokemon and pokemon[Unown.SPECIES]
+      local named = sdef and sdef.letters and Unown.name(Unown.index(first))
+      if not (named and sdef.letters[named]) then return nil end
+      return Unown.formSprite(pokemon, first, false)
     end
 
     local function picOf(def)
