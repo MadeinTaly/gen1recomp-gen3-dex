@@ -850,7 +850,7 @@ return function(mod)
       return fadeCanvases[key] or nil
     end
 
-    local function paintPic(img, x, y, k, colors, alpha)
+    local function paintPic(img, x, y, k, colors, alpha, quad, srcSize)
       local g = love.graphics
       local a = alpha or 1
       local sh = nil
@@ -866,6 +866,7 @@ return function(mod)
         local okDim, iw, ih = pcall(function()
           return img:getWidth(), img:getHeight()
         end)
+        if quad and srcSize then iw, ih = srcSize, srcSize end
         local canvas = okDim and iw and ih and fadeCanvas(iw, ih) or nil
         if canvas then
           local drew = pcall(function()
@@ -874,7 +875,7 @@ return function(mod)
             g.clear(0, 0, 0, 0)
             g.setShader(sh)
             g.setColor(1, 1, 1, 1)
-            g.draw(img, 0, 0)
+            if quad then g.draw(img, quad, 0, 0) else g.draw(img, 0, 0) end
             g.pop()
           end)
           pcall(g.setCanvas)
@@ -892,10 +893,58 @@ return function(mod)
 
       if sh then pcall(g.setShader, sh) end
       g.setColor(1, 1, 1, a)
-      pcall(g.draw, img, x, y, 0, k, k)
+      if quad then
+        pcall(g.draw, img, quad, x, y, 0, k, k)
+      else
+        pcall(g.draw, img, x, y, 0, k, k)
+      end
       if sh then pcall(g.setShader) end
       g.setColor(1, 1, 1, 1)
     end
+
+    -- ------- CRYSTAL ANIMATES ITS OWN POKEMON
+    --
+    -- Gold and Silver draw one still picture; Crystal is the Gen 2 game
+    -- that moves. The engine extracts it -- the species record carries
+    -- `anim` with a `sheet` and a `count`
+    -- (src/import/RomExtractorGen2.lua:1631) -- and the sheet is a COLUMN
+    -- of whole pictures, the base one on top and `count` frames below.
+    -- Same shape as an overworld sprite sheet, so it is drawn the same
+    -- way: one quad walked down the strip. Nothing is probed, nothing
+    -- guessed -- the frames were in the cartridge all along.
+    --
+    -- A dex row has no mon, so Unown takes the animation of the form the
+    -- player met FIRST, the same letter its picture already uses.
+    local animSheets = {}
+    local function crystalAnim(def)
+      if not def then return nil end
+      local rec = def.anim
+      local okU, Unown = pcall(require, "src.core.gen2.Unown")
+      if okU and type(Unown) == "table" and def.id == Unown.SPECIES then
+        local first = game.save and tonumber(game.save.firstUnownSeen) or 0
+        local named = first > 0 and Unown.name(Unown.index(first)) or nil
+        local form = named and def.letters and def.letters[named]
+        rec = (form and form.anim) or rec
+      end
+      if not (rec and rec.sheet and rec.count and rec.count > 0) then
+        return nil
+      end
+      local hit = animSheets[rec.sheet]
+      if hit == nil then
+        local ok, img = pcall(Assets.image, rec.sheet)
+        hit = (ok and img) or false
+        animSheets[rec.sheet] = hit
+      end
+      if not hit then return nil end
+      local size = hit:getWidth()
+      local total = rec.count + 1
+      local at = math.floor((self.sceneTick or 0) / 6) % total
+      local okQ, quad = pcall(love.graphics.newQuad, 0, at * size,
+        size, size, hit:getWidth(), hit:getHeight())
+      if not okQ or not quad then return nil end
+      return hit, quad, size
+    end
+    self.crystalAnim = crystalAnim
 
     -- ------- Wilds of Kanto's overworld sprites, CLASSIC only
     --
@@ -1220,9 +1269,57 @@ return function(mod)
         if not sprite then return false end
         local k = picScale(sprite, cell)
         local w, h = sprite:getWidth() * k, sprite:getHeight() * k
+        -- ------- THE ICONS GET THEIR COLOURS TOO
+        --
+        -- This drew the sheet raw -- setColor and nothing else -- so on the
+        -- small cells, where this path is the one that runs, every Pokemon
+        -- came out in the icon sheet's own two tones. 0.20.1 gave the
+        -- BATTLE PICTURES their colours and stopped there, so CLASSIC and
+        -- full screen still looked like a grey dex: the fix was real and it
+        -- was in the wrong draw.
+        --
+        -- Gold colours its own icons the same way, off the palette pack
+        -- (src/world/gen2/World.lua:7415). Here the species' own four
+        -- colours are used, which is what the pictures beside them wear.
+        local colors = monColours(game, def.id)
+        local sh = nil
+        if colors and type(PaletteFX.shader) == "function" then
+          local okS, made = pcall(PaletteFX.shader)
+          if okS and made and pcall(PaletteFX.sendColors, made, colors) then
+            sh = made
+          end
+        end
+        local dx, dy = x + (cell - w) / 2, y + (cell - h) / 2
+        -- A shaded draw ignores setColor's alpha -- the shader returns its
+        -- own vec4 -- so a dimmed one goes through a canvas, exactly as
+        -- paintPic does for the battle pictures.
+        if sh and dim then
+          local iw, ih = sprite:getWidth(), sprite:getHeight()
+          local canvas = fadeCanvas(iw, ih)
+          if canvas then
+            local drew = pcall(function()
+              love.graphics.push("all")
+              love.graphics.setCanvas(canvas)
+              love.graphics.clear(0, 0, 0, 0)
+              love.graphics.setShader(sh)
+              love.graphics.setColor(1, 1, 1, 1)
+              love.graphics.draw(sprite.image, sprite.quad, 0, 0)
+              love.graphics.pop()
+            end)
+            pcall(love.graphics.setCanvas)
+            if drew then
+              love.graphics.setColor(1, 1, 1, DIM_SEEN)
+              local okD = pcall(love.graphics.draw, canvas, dx, dy, 0, k, k)
+              love.graphics.setColor(1, 1, 1, 1)
+              return okD
+            end
+          end
+        end
+        if sh then pcall(love.graphics.setShader, sh) end
         if dim then love.graphics.setColor(1, 1, 1, DIM_SEEN) end
         local ok = pcall(love.graphics.draw, sprite.image, sprite.quad,
-          x + (cell - w) / 2, y + (cell - h) / 2, 0, k, k)
+          dx, dy, 0, k, k)
+        if sh then pcall(love.graphics.setShader) end
         love.graphics.setColor(1, 1, 1, 1)
         return ok
       end
@@ -2693,8 +2790,18 @@ return function(mod)
               end
             end
             if img then
-              local k = picScale(img, L.cell)
-              local w, h = img:getWidth() * k, img:getHeight() * k
+              -- Crystal's own frames win over the still picture wherever
+              -- there is room to see them
+              local quad, qsize = nil, nil
+              if not trueColor then
+                local sheet, q, size = crystalAnim(e.def)
+                if sheet then img, quad, qsize = sheet, q, size end
+              end
+              local srcW = quad and qsize or img:getWidth()
+              local srcH = quad and qsize or img:getHeight()
+              local k = quad and math.max(1, math.floor(L.cell / srcW))
+                or picScale(img, L.cell)
+              local w, h = srcW * k, srcH * k
               -- a seen-but-uncaught species is dimmed rather than hidden:
               -- you met it, you just do not own it. A THIRD, down from 45%:
               -- over a scene the old value read as "caught, in paler ink",
@@ -2742,7 +2849,7 @@ return function(mod)
                 colors = monColours(game, e.def.id)
               end
               paintPic(img, x + (L.cell - w) / 2, y + (L.cell - h) / 2, k,
-                colors, alpha)
+                colors, alpha, quad, qsize)
             end
           end
         end

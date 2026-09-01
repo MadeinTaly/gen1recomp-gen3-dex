@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.21.0 -- Crystal's own animation, and the menu icons get their colours
+
+**The icons were grey.** 0.20.1 gave the battle PICTURES their colours and
+stopped there -- and on the small cells, where the menu-icon path is the one
+that runs, every Pokemon still came out in the icon sheet's own two tones.
+The fix was real and it was in the wrong draw. The icons now go through the
+same species colours, and a dimmed one goes through the same canvas, because
+a shaded draw ignores `setColor`'s alpha.
+
+**Crystal animates its own Pokemon.** Gold and Silver draw one still
+picture; Crystal moves, and the engine has been extracting those frames all
+along -- a species record carries `anim` with a `sheet` and a `count`
+(`src/import/RomExtractorGen2.lua:1631`), the sheet being a column of whole
+pictures with the still one on top. Same shape as an overworld sprite sheet,
+so it is drawn the same way: one quad walked down the strip.
+
+A dex row has no mon, so Unown takes the animation of the form the player
+met FIRST -- the same letter its picture already uses.
+
 ## 0.20.2 -- the same hole the box mod had
 
 `formSprite` never answers nil: on a species with no `letters` table it falls
